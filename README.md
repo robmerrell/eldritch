@@ -1,0 +1,3 @@
+# Eldritch
+
+Personalized text editor
