@@ -1,7 +1,17 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/robmerrell/eldritch/internal/app"
+)
 
 func main() {
-	fmt.Println("out")
+	p := tea.NewProgram(app.Init())
+	if _, err := p.Run(); err != nil {
+		fmt.Printf("Error starting Eldritch: %v", err)
+		os.Exit(1)
+	}
 }
