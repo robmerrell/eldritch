@@ -9,11 +9,6 @@ const (
 	SelectionDirectionLeft
 )
 
-type Cursor struct {
-	X int
-	Y int
-}
-
 type Selection struct {
 	// start of the selection
 	AnchorX uint
@@ -53,9 +48,17 @@ func (s *Selection) Beginning() (uint, uint) {
 	}
 }
 
-func NewCursor(x, y int) *Cursor {
-	return &Cursor{
-		X: x,
-		Y: y,
-	}
+func (s *Selection) SetAnchor(x, y uint) {
+	s.AnchorX = x
+	s.AnchorY = y
+}
+
+func (s *Selection) SetHead(x, y uint) {
+	s.HeadX = x
+	s.HeadY = y
+}
+
+func (s *Selection) SetCollapsed(x, y uint) {
+	s.SetAnchor(x, y)
+	s.SetHead(x, y)
 }

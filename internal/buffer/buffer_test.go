@@ -4,16 +4,50 @@ import (
 	"testing"
 )
 
+func strRune(input string) rune {
+	return []rune(input)[0]
+}
+
+func assertCollapsedSelection(t *testing.T, sel *Selection, x, y uint) {
+	t.Helper()
+
+	if sel.AnchorX != x {
+		t.Errorf("Anchor x got: %d, expected %d", sel.AnchorX, x)
+	}
+
+	if sel.AnchorY != y {
+		t.Errorf("Anchor y got: %d, expected %d", sel.AnchorY, y)
+	}
+
+	if sel.HeadX != x {
+		t.Errorf("Head x got: %d, expected %d", sel.HeadX, x)
+	}
+
+	if sel.HeadY != y {
+		t.Errorf("Head y got: %d, expected %d", sel.HeadY, y)
+	}
+}
+
+func TestInsertSelectionPosition(t *testing.T) {
+	buffer := NewBuffer()
+
+	buffer.Insert(strRune("h"))
+	assertCollapsedSelection(t, buffer.selections[0], 1, 0)
+
+	buffer.Insert(strRune("i"))
+	assertCollapsedSelection(t, buffer.selections[0], 2, 0)
+}
+
 func TestInsertBacktrackOne(t *testing.T) {
 	// add "eld" at the beginning of the buffer
 	buffer := NewBuffer()
-	buffer.Insert([]rune("e")[0])
-	buffer.Insert([]rune("l")[0])
-	buffer.Insert([]rune("d")[0])
+	buffer.Insert(strRune("e"))
+	buffer.Insert(strRune("l"))
+	buffer.Insert(strRune("d"))
 
 	// insert - between the l and the d
 	buffer.ShiftSelections(SelectionDirectionLeft, 1)
-	buffer.Insert([]rune("-")[0])
+	buffer.Insert(strRune("-"))
 
 	if got, want := string(buffer.contents[0].runes), "el-d"; got != want {
 		t.Errorf("content=%s, want=%s", got, want)
@@ -23,9 +57,9 @@ func TestInsertBacktrackOne(t *testing.T) {
 func TestInsertBacktrackToBeginning(t *testing.T) {
 	// add "eld" at the beginning of the buffer
 	buffer := NewBuffer()
-	buffer.Insert([]rune("e")[0])
-	buffer.Insert([]rune("l")[0])
-	buffer.Insert([]rune("d")[0])
+	buffer.Insert(strRune("e"))
+	buffer.Insert(strRune("l"))
+	buffer.Insert(strRune("d"))
 
 	// insert - between the l and the d
 	buffer.ShiftSelections(SelectionDirectionLeft, 1)
@@ -38,35 +72,64 @@ func TestInsertBacktrackToBeginning(t *testing.T) {
 	}
 }
 
-func TestShiftSelection(t *testing.T) {
+func setupSelectionBuffer() *Buffer {
 	buffer := NewBuffer()
+	buffer.SetContents([]rune("hello\nworld\nthis is\na buffer"))
+
+	return buffer
 }
 
-// func TestInsertAtEndOfLine(t *testing.T) {
-// 	input := []rune("s")[0]
+func TestShiftSelectionUp(t *testing.T) {
+	// from 0 removed
 
-// 	buffer := NewBuffer()
-// 	buffer.Insert(input)
+	// from 1 goes to 0
+}
 
-// 	if got, want := buffer.contents[0].runes[0], input; got != want {
-// 		t.Errorf("input=%s, want=%s", string(got), string(want))
-// 	}
-// }
+func TestShiftSelectionDown(t *testing.T) {
+	// from 0 goes down
 
-// func TestInsertMiddleOfString(t *testing.T) {
-// 	// add "hi" at the beginnign of the buffer
-// 	buffer := NewBuffer()
-// 	buffer.Insert([]rune("h")[0])
-// 	buffer.Insert([]rune("i")[0])
+	// from 1 (end) removed
+}
 
-// 	// insert between the h and the i
-// 	buffer.MoveCursorsInDirection(CursorLeft, 1)
-// 	buffer.Insert([]rune("-")[0])
+func TestShiftSelectionRight(t *testing.T) {
+	buffer := setupSelectionBuffer()
 
-// 	if got, want := string(buffer.contents[0].runes), "h-i"; got != want {
-// 		t.Errorf("content=%s, want=%s", got, want)
-// 	}
-// }
+	/*
+		// from 0 moves right
+		buffer.selections[0].SetCollapsed(0, 0)
+		buffer.ShiftSelections(SelectionDirectionRight, 1)
+		assertCollapsedSelection(t, buffer.selections[0], 1, 0)
+
+		// from the middle
+		buffer.selections[0].SetCollapsed(3, 0)
+		buffer.ShiftSelections(SelectionDirectionRight, 1)
+		assertCollapsedSelection(t, buffer.selections[0], 4, 0)
+
+		// after the last character moves the cursor past it to empty space
+		buffer.selections[0].SetCollapsed(5, 0)
+		buffer.ShiftSelections(SelectionDirectionRight, 1)
+		assertCollapsedSelection(t, buffer.selections[0], 6, 0)
+	*/
+
+	// at end of line goes to the beginning of the next line
+	buffer.selections[0].SetCollapsed(5, 0)
+	buffer.ShiftSelections(SelectionDirectionRight, 1)
+	assertCollapsedSelection(t, buffer.selections[0], 0, 1)
+
+	// at the end of the last line doesn't move
+}
+
+func TestShiftSelectionLeft(t *testing.T) {
+	// buffer := setupSelectionBuffer()
+
+	// from 0 previous line
+
+	// from the middle
+
+	// at the last character
+
+	// at end of line
+}
 
 // func TestBufferWithBadFile(t *testing.T) {
 // 	_, err := NewBufferWithFile("badfile")

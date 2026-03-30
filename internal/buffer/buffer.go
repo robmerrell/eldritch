@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 )
 
 // errors
@@ -34,17 +33,11 @@ type Buffer struct {
 	// selections are like cursors. Similar to Kakoune and Helix all cursors
 	// are selections. Even selections of 1.
 	selections []*Selection
-
-	// a cursor will always be at index 0. This is the main cursor.
-	// any cursor beyond the first is a transient cursor.
-	// A collection of cursor selections for the
-	cursors []*Cursor
 }
 
 // NewBuffer creates a new buffer with default options.
 func NewBuffer() *Buffer {
 	b := &Buffer{
-		cursors:    []*Cursor{NewCursor(0, 0)},
 		selections: []*Selection{NewSelection(0, 0)},
 	}
 	b.Clear()
@@ -71,34 +64,34 @@ func (b *Buffer) AssignName(name string) {
 	b.name = &name
 }
 
-// PrintDbg prints out a line and cursor position to use before I'm actually rendering anything.
-func (b *Buffer) PrintDbg(lineNum uint) {
-	line := b.contents[lineNum]
+// PrintDbg prints out a line and selection position to use before I'm actually rendering anything.
+// func (b *Buffer) PrintDbg(lineNum uint) {
+// 	line := b.contents[lineNum]
 
-	fmt.Println(string(line.runes))
+// 	fmt.Println(string(line.runes))
 
-	// draw any selections on the line
-	for _, selection := range b.selections {
-		selectionOut := make([]string, len(line.runes)+1)
-		for i := range selectionOut {
-			selectionOut[i] = " "
-		}
+// 	// draw any selections on the line
+// 	for _, selection := range b.selections {
+// 		selectionOut := make([]string, len(line.runes)+1)
+// 		for i := range selectionOut {
+// 			selectionOut[i] = " "
+// 		}
 
-		if selection.AnchorY == lineNum && selection.HeadY == lineNum {
-			selectionOut[selection.AnchorX] = "A"
+// 		if selection.AnchorY == lineNum && selection.HeadY == lineNum {
+// 			selectionOut[selection.AnchorX] = "A"
 
-			if selectionOut[selection.HeadX] != " " {
-				selectionOut[selection.HeadX] = "B"
-			} else {
-				selectionOut[selection.HeadX] = "H"
-			}
-		}
+// 			if selectionOut[selection.HeadX] != " " {
+// 				selectionOut[selection.HeadX] = "B"
+// 			} else {
+// 				selectionOut[selection.HeadX] = "H"
+// 			}
+// 		}
 
-		fmt.Println(strings.Join(selectionOut, ""))
-	}
-}
+// 		fmt.Println(strings.Join(selectionOut, ""))
+// 	}
+// }
 
-// Insert inserts a rune at all cursor positions. Characters are inserted before the selection.
+// Insert inserts a rune at all selection positions. Characters are inserted before the selection.
 func (b *Buffer) Insert(input rune) {
 	for _, selection := range b.selections {
 		// get the beginning of the selection regardless of anchor coords
@@ -118,6 +111,23 @@ func (b *Buffer) Insert(input rune) {
 	}
 }
 
+// SetContents replaces current contents with the given input.
+func (b *Buffer) SetContents(contents []rune) {
+	b.Clear()
+
+	for _, rn := range contents {
+		if rn == '\n' {
+			newLine := line{runes: make([]rune, 0, DefaultRuneCap)}
+			b.contents = append(b.contents, newLine)
+			b.ShiftSelections(SelectionDirectionDown, 1)
+			fmt.Printf("%+v\n", b.selections[0])
+		} else {
+			fmt.Printf("ins %s\n", string(rn))
+			b.Insert(rn)
+		}
+	}
+}
+
 // ShiftSelections shifts all selections in a direction
 func (b *Buffer) ShiftSelections(direction SelectionDirection, count uint) {
 	for _, selection := range b.selections {
@@ -128,9 +138,30 @@ func (b *Buffer) ShiftSelections(direction SelectionDirection, count uint) {
 // shiftSelection shifts a specified selection in a direction
 func (b *Buffer) shiftSelection(selection *Selection, direction SelectionDirection, count uint) {
 	switch direction {
+	case SelectionDirectionUp:
+		selection.AnchorY = selection.AnchorY - count
+		selection.HeadY = selection.HeadY - count
+
 	case SelectionDirectionRight:
 		selection.AnchorX = selection.AnchorX + count
 		selection.HeadX = selection.HeadX + count
+		line := b.contents[selection.HeadY]
+
+		// selection at the end of the line
+		if selection.HeadX >= uint(len(line.runes)) {
+			// if not the last line wrap around to the next
+			fmt.Printf("hy: %d -- contents: %d\n", selection.HeadY, len(b.contents)-1)
+			if selection.HeadY < uint(len(b.contents)-1) {
+				selection.SetHead(0, selection.HeadY+1)
+			}
+
+			// if last line don't move
+			return
+		}
+
+	case SelectionDirectionDown:
+		selection.AnchorY = selection.AnchorY + count
+		selection.HeadY = selection.HeadY + count
 
 	case SelectionDirectionLeft:
 		selection.AnchorX = selection.AnchorX - count
