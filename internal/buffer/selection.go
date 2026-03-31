@@ -9,6 +9,13 @@ const (
 	SelectionDirectionLeft
 )
 
+// Selection works similarly to how I imagine Kakoune and Helix selections work. Instead
+// of the primitive text entry point being a cursor it is a selection. Every selection has
+// an anchor point and a head point. Inserting is done at the beginning of the selection
+// and appending done at the end.
+//
+// The anchor and head having the same coordinates is a valid state. This is called collapsed
+// and this causes the selection to act more like a traditional cursor.
 type Selection struct {
 	// start of the selection
 	AnchorX uint
@@ -19,6 +26,7 @@ type Selection struct {
 	HeadY uint
 }
 
+// NewSelection creates a new selection with both anchor and head pointing at the same location.
 func NewSelection(x, y uint) *Selection {
 	return &Selection{
 		AnchorX: x,
@@ -28,6 +36,8 @@ func NewSelection(x, y uint) *Selection {
 	}
 }
 
+// Beginning returns the anchor or head location with the position closest to the top left
+// of the document.
 func (s *Selection) Beginning() (uint, uint) {
 	// the most common case is anchor and head being the same coords so check for it first
 	if (s.AnchorY == s.HeadY) && (s.AnchorX == s.HeadX) {
@@ -48,16 +58,19 @@ func (s *Selection) Beginning() (uint, uint) {
 	}
 }
 
+// SetAnchor sets the anchor location
 func (s *Selection) SetAnchor(x, y uint) {
 	s.AnchorX = x
 	s.AnchorY = y
 }
 
+// SetHead sets the head location
 func (s *Selection) SetHead(x, y uint) {
 	s.HeadX = x
 	s.HeadY = y
 }
 
+// SetCollapsed sets both the anchor and head locations to the same point
 func (s *Selection) SetCollapsed(x, y uint) {
 	s.SetAnchor(x, y)
 	s.SetHead(x, y)

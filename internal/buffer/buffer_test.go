@@ -74,62 +74,103 @@ func TestInsertBacktrackToBeginning(t *testing.T) {
 
 func setupSelectionBuffer() *Buffer {
 	buffer := NewBuffer()
-	buffer.SetContents([]rune("hello\nworld\nthis is\na buffer"))
+	buffer.SetContents([]rune("hello\nworld\nthis\nis a buffer"))
 
 	return buffer
 }
 
 func TestShiftSelectionUp(t *testing.T) {
-	// from 0 removed
+	buffer := setupSelectionBuffer()
 
-	// from 1 goes to 0
+	// from 0 doesn't go up
+	buffer.selections[0].SetCollapsed(3, 0)
+	buffer.ShiftSelections(SelectionDirectionUp, 1)
+	assertCollapsedSelection(t, buffer.selections[0], 3, 0)
+
+	// from 1 goes up
+	buffer.selections[0].SetCollapsed(3, 1)
+	buffer.ShiftSelections(SelectionDirectionUp, 1)
+	assertCollapsedSelection(t, buffer.selections[0], 3, 0)
+
+	// move up at end of line to a shorter line
+	line := buffer.contents[3]
+	buffer.selections[0].SetCollapsed(line.length, 3)
+	buffer.ShiftSelections(SelectionDirectionUp, 1)
+	assertCollapsedSelection(t, buffer.selections[0], 4, 2)
 }
 
 func TestShiftSelectionDown(t *testing.T) {
-	// from 0 goes down
+	buffer := setupSelectionBuffer()
+	lineCount := uint(len(buffer.contents))
 
-	// from 1 (end) removed
+	// from 0 goes down
+	buffer.selections[0].SetCollapsed(0, 0)
+	buffer.ShiftSelections(SelectionDirectionDown, 1)
+	assertCollapsedSelection(t, buffer.selections[0], 0, 1)
+
+	// move down at end of line, but move to shorter line
+	line := buffer.contents[1]
+	buffer.selections[0].SetCollapsed(line.length, 1)
+	buffer.ShiftSelections(SelectionDirectionDown, 1)
+	assertCollapsedSelection(t, buffer.selections[0], 4, 2)
+
+	// from last line don't go down
+	buffer.selections[0].SetCollapsed(0, lineCount-1)
+	buffer.ShiftSelections(SelectionDirectionDown, 1)
+	assertCollapsedSelection(t, buffer.selections[0], 0, lineCount-1)
 }
 
 func TestShiftSelectionRight(t *testing.T) {
 	buffer := setupSelectionBuffer()
+	line := buffer.contents[0]
+	lineCount := uint(len(buffer.contents))
 
-	/*
-		// from 0 moves right
-		buffer.selections[0].SetCollapsed(0, 0)
-		buffer.ShiftSelections(SelectionDirectionRight, 1)
-		assertCollapsedSelection(t, buffer.selections[0], 1, 0)
+	// from 0 moves right
+	buffer.selections[0].SetCollapsed(0, 0)
+	buffer.ShiftSelections(SelectionDirectionRight, 1)
+	assertCollapsedSelection(t, buffer.selections[0], 1, 0)
 
-		// from the middle
-		buffer.selections[0].SetCollapsed(3, 0)
-		buffer.ShiftSelections(SelectionDirectionRight, 1)
-		assertCollapsedSelection(t, buffer.selections[0], 4, 0)
+	// from the middle
+	buffer.selections[0].SetCollapsed(3, 0)
+	buffer.ShiftSelections(SelectionDirectionRight, 1)
+	assertCollapsedSelection(t, buffer.selections[0], 4, 0)
 
-		// after the last character moves the cursor past it to empty space
-		buffer.selections[0].SetCollapsed(5, 0)
-		buffer.ShiftSelections(SelectionDirectionRight, 1)
-		assertCollapsedSelection(t, buffer.selections[0], 6, 0)
-	*/
+	// after the last character moves the cursor past it to empty space
+	buffer.selections[0].SetCollapsed(line.length-1, 0)
+	buffer.ShiftSelections(SelectionDirectionRight, 1)
+	assertCollapsedSelection(t, buffer.selections[0], 5, 0)
 
 	// at end of line goes to the beginning of the next line
-	buffer.selections[0].SetCollapsed(5, 0)
+	buffer.selections[0].SetCollapsed(line.length, 0)
 	buffer.ShiftSelections(SelectionDirectionRight, 1)
 	assertCollapsedSelection(t, buffer.selections[0], 0, 1)
 
 	// at the end of the last line doesn't move
+	line = buffer.contents[3]
+	buffer.selections[0].SetCollapsed(line.length, lineCount-1)
+	buffer.ShiftSelections(SelectionDirectionRight, 1)
+	assertCollapsedSelection(t, buffer.selections[0], line.length, lineCount-1)
 }
 
-func TestShiftSelectionLeft(t *testing.T) {
-	// buffer := setupSelectionBuffer()
+// func TestShiftSelectionLeft(t *testing.T) {
+// 	// buffer := setupSelectionBuffer()
 
-	// from 0 previous line
+// 	// from 0 previous line
 
-	// from the middle
+// 	// from the middle
 
-	// at the last character
+// 	// at the last character
 
-	// at end of line
-}
+// 	// at end of line
+// }
+
+// func TestShiftingSelectionsByCount(t *testing.T) {
+
+// }
+
+// func TestShiftingSelectionsPreserveAnchor(t *testing.T) {
+
+// }
 
 // func TestBufferWithBadFile(t *testing.T) {
 // 	_, err := NewBufferWithFile("badfile")
