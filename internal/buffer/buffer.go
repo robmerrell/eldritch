@@ -212,6 +212,18 @@ func (b *Buffer) shiftSelection(selection *Selection, direction SelectionDirecti
 		}
 
 	case SelectionDirectionLeft:
+		// selection at the beginning of the line
+		if selection.HeadX == 0 {
+			// if not the first line wrap around to the next
+			if selection.HeadY > 0 {
+				prevLine := b.contents[selection.HeadY-1]
+				selection.SetCollapsed(prevLine.length, selection.HeadY-1)
+			}
+
+			// if first line don't move
+			return
+		}
+
 		selection.AnchorX = selection.AnchorX - count
 		selection.HeadX = selection.HeadX - count
 	}

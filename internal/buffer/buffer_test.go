@@ -152,17 +152,25 @@ func TestShiftSelectionRight(t *testing.T) {
 	assertCollapsedSelection(t, buffer.selections[0], line.length, lineCount-1)
 }
 
-// func TestShiftSelectionLeft(t *testing.T) {
-// 	// buffer := setupSelectionBuffer()
+func TestShiftSelectionLeft(t *testing.T) {
+	buffer := setupSelectionBuffer()
 
-// 	// from 0 previous line
+	// from 0, 0 doesn't move
+	buffer.selections[0].SetCollapsed(0, 0)
+	buffer.ShiftSelections(SelectionDirectionLeft, 1)
+	assertCollapsedSelection(t, buffer.selections[0], 0, 0)
 
-// 	// from the middle
+	// from the middle
+	buffer.selections[0].SetCollapsed(3, 0)
+	buffer.ShiftSelections(SelectionDirectionLeft, 1)
+	assertCollapsedSelection(t, buffer.selections[0], 2, 0)
 
-// 	// at the last character
-
-// 	// at end of line
-// }
+	// at beginning of line goes to the end of the next line
+	buffer.selections[0].SetCollapsed(0, 2)
+	buffer.ShiftSelections(SelectionDirectionLeft, 1)
+	newLine := buffer.contents[1]
+	assertCollapsedSelection(t, buffer.selections[0], newLine.length, 1)
+}
 
 // func TestShiftingSelectionsByCount(t *testing.T) {
 
