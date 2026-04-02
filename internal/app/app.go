@@ -2,6 +2,9 @@ package app
 
 import (
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/robmerrell/eldritch/internal/components"
+	"github.com/robmerrell/eldritch/internal/themes"
 )
 
 type InputState int
@@ -15,7 +18,12 @@ const (
 )
 
 type rootModel struct {
+	theme             *themes.Theme
 	currentInputState InputState
+
+	// ui components
+	modeline     *components.Modeline
+	rootViewport *components.Viewport
 }
 
 func (m rootModel) Init() tea.Cmd {
@@ -39,15 +47,17 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m rootModel) View() tea.View {
-	stateString := "u"
-	switch m.currentInputState {
-	case InputStateNormal:
-		stateString = "n"
-	case InputStateInsert:
-		stateString = "i"
-	}
+	layout := lipgloss.JoinVertical(
+		lipgloss.Left,
+		m.modeline.View().Content,
+		m.rootViewport.View().Content)
 
-	return tea.NewView(stateString)
+	mainView := tea.NewView(layout)
+	mainView.AltScreen = true
+	mainView.BackgroundColor = m.theme.Bg
+	mainView.ForegroundColor = m.theme.Fg
+
+	return mainView
 }
 
 func (m rootModel) handleNormalStateKey(key string) (tea.Model, tea.Cmd) {
@@ -78,7 +88,12 @@ func (m rootModel) handleInsertStateKey(key string) (tea.Model, tea.Cmd) {
 }
 
 func Init() rootModel {
+	theme := themes.BatSquatch()
+
 	return rootModel{
+		theme:             theme,
 		currentInputState: InputStateNormal,
+		rootViewport:      components.NewViewport(),
+		modeline:          components.NewModeline(theme),
 	}
 }
