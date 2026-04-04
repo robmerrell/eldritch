@@ -2,7 +2,6 @@ package app
 
 import (
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/robmerrell/eldritch/internal/buffer"
 	"github.com/robmerrell/eldritch/internal/components"
 	"github.com/robmerrell/eldritch/internal/themes"
@@ -27,7 +26,6 @@ type rootModel struct {
 	screenHeight int
 
 	// ui components
-	modeline *components.Modeline
 	rootView *components.BufferView
 }
 
@@ -40,7 +38,7 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.screenWidth = msg.Width
 		m.screenHeight = msg.Height
-		m.modeline.Update(msg)
+		m.rootView.Update(msg)
 
 	// handle keypress events
 	case tea.KeyPressMsg:
@@ -56,12 +54,7 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m rootModel) View() tea.View {
-	layout := lipgloss.JoinVertical(
-		lipgloss.Left,
-		m.modeline.View().Content,
-		m.rootView.View().Content)
-
-	mainView := tea.NewView(layout)
+	mainView := tea.NewView(m.rootView.View().Content)
 	mainView.AltScreen = true
 	mainView.BackgroundColor = m.theme.Bg
 	mainView.ForegroundColor = m.theme.Fg
@@ -105,7 +98,6 @@ func Init() rootModel {
 	return rootModel{
 		theme:             theme,
 		currentInputState: InputStateNormal,
-		rootView:          components.NewBufferView(buffer),
-		modeline:          components.NewModeline(theme),
+		rootView:          components.NewBufferView(buffer, theme),
 	}
 }
