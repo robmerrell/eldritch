@@ -229,6 +229,10 @@ func (b *Buffer) shiftSelection(selection *Selection, direction SelectionDirecti
 	}
 }
 
+func (b *Buffer) ContentsForRendering() string {
+	return "ok"
+}
+
 // LoadFile loads a file into the buffer
 // func (b *Buffer) LoadFile(filePath string) error {
 // 	contents, err := os.ReadFile(filePath)

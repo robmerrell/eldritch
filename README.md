@@ -137,6 +137,7 @@ I wanted to have a project that I could use daily and not use AI while working i
 - [ ] Run command and ignore output
 
 ### Future Wants
+- [ ] Multibuffer for all selections in file
 - [ ] Git merge tool
 - [ ] local PR Tool
 - [ ] File tree

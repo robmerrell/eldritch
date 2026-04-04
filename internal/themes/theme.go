@@ -8,6 +8,8 @@ type Theme struct {
 	Fg color.Color
 
 	// Modeline
-	ModelineBg color.Color
-	ModelineFg color.Color
+	ModelineBg          color.Color
+	ModelineFg          color.Color
+	ModelineInputModeBg color.Color
+	ModelineInputModeFg color.Color
 }

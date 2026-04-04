@@ -9,18 +9,20 @@ type Viewport struct {
 	buffer *buffer.Buffer
 }
 
-func (v Viewport) Init() tea.Cmd {
+func (v *Viewport) Init() tea.Cmd {
 	return nil
 }
 
-func (v Viewport) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (v *Viewport) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return v, nil
 }
 
-func (v Viewport) View() tea.View {
-	return tea.NewView("asdf")
+func (v *Viewport) View() tea.View {
+	return tea.NewView(v.buffer.ContentsForRendering())
 }
 
-func NewViewport() *Viewport {
-	return &Viewport{}
+func NewViewport(buffer *buffer.Buffer) *Viewport {
+	return &Viewport{
+		buffer: buffer,
+	}
 }

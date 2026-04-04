@@ -3,6 +3,7 @@ package app
 import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/robmerrell/eldritch/internal/buffer"
 	"github.com/robmerrell/eldritch/internal/components"
 	"github.com/robmerrell/eldritch/internal/themes"
 )
@@ -21,6 +22,10 @@ type rootModel struct {
 	theme             *themes.Theme
 	currentInputState InputState
 
+	// screen sizes
+	screenWidth  int
+	screenHeight int
+
 	// ui components
 	modeline     *components.Modeline
 	rootViewport *components.Viewport
@@ -32,6 +37,10 @@ func (m rootModel) Init() tea.Cmd {
 
 func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.screenWidth = msg.Width
+		m.screenHeight = msg.Height
+		m.modeline.Update(msg)
 
 	// handle keypress events
 	case tea.KeyPressMsg:
@@ -90,10 +99,13 @@ func (m rootModel) handleInsertStateKey(key string) (tea.Model, tea.Cmd) {
 func Init() rootModel {
 	theme := themes.BatSquatch()
 
+	// initial empty buffer
+	buffer := buffer.NewBuffer()
+
 	return rootModel{
 		theme:             theme,
 		currentInputState: InputStateNormal,
-		rootViewport:      components.NewViewport(),
+		rootViewport:      components.NewViewport(buffer),
 		modeline:          components.NewModeline(theme),
 	}
 }
