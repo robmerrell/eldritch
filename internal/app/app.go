@@ -27,8 +27,8 @@ type rootModel struct {
 	screenHeight int
 
 	// ui components
-	modeline     *components.Modeline
-	rootViewport *components.Viewport
+	modeline *components.Modeline
+	rootView *components.BufferView
 }
 
 func (m rootModel) Init() tea.Cmd {
@@ -59,7 +59,7 @@ func (m rootModel) View() tea.View {
 	layout := lipgloss.JoinVertical(
 		lipgloss.Left,
 		m.modeline.View().Content,
-		m.rootViewport.View().Content)
+		m.rootView.View().Content)
 
 	mainView := tea.NewView(layout)
 	mainView.AltScreen = true
@@ -105,7 +105,7 @@ func Init() rootModel {
 	return rootModel{
 		theme:             theme,
 		currentInputState: InputStateNormal,
-		rootViewport:      components.NewViewport(buffer),
+		rootView:          components.NewBufferView(buffer),
 		modeline:          components.NewModeline(theme),
 	}
 }
