@@ -1,8 +1,6 @@
 package components
 
 import (
-	"log"
-
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/robmerrell/eldritch/internal/themes"
@@ -21,9 +19,7 @@ func (m *Modeline) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		log.Printf("msg w: %d", msg.Width)
 		m.width = msg.Width
-
 	}
 
 	return m, nil

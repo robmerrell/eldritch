@@ -63,6 +63,7 @@ I wanted to have a project that I could use daily and not use AI while working i
   - [ ] Language type
   - [ ] nyan-mode, but FF?
 - [ ] Color schemes
+  - https://www.beesmygod.com/significant-colors-in-bloodborne/
 - [ ] Splits
   - [ ] Vertical splits
   - [ ] Horizontal splits

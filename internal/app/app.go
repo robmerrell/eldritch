@@ -94,6 +94,7 @@ func Init() rootModel {
 
 	// initial empty buffer
 	buffer := buffer.NewBuffer()
+	buffer.SetContents([]rune("hello\nworld\nthis\nis a buffer"))
 
 	return rootModel{
 		theme:             theme,

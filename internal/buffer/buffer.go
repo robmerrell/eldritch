@@ -25,6 +25,7 @@ package buffer
 import (
 	"errors"
 	"fmt"
+	"iter"
 	"slices"
 	"strings"
 )
@@ -229,8 +230,14 @@ func (b *Buffer) shiftSelection(selection *Selection, direction SelectionDirecti
 	}
 }
 
-func (b *Buffer) ContentsForRendering() string {
-	return "ok"
+func (b *Buffer) ContentsForRendering() iter.Seq[[]rune] {
+	return func(yield func([]rune) bool) {
+		for _, line := range b.contents {
+			if !yield(line.runes) {
+				return
+			}
+		}
+	}
 }
 
 // LoadFile loads a file into the buffer
