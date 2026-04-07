@@ -37,9 +37,17 @@ var ErrNotFileBackedBuffer = errors.New("Not a file backed buffer")
 const DefaultLineCap = 256
 const DefaultRuneCap = 256
 
+// line holds line contents and the length
 type line struct {
 	runes  []rune
 	length uint
+}
+
+// RenderableLine stores a line ready for rendering. This includes already split out into multiple
+// display lines for word wrapping.
+type RenderableLine struct {
+	LineContents string
+	RenderedRows int
 }
 
 // Buffer is the backing structure for an editable document. Similar to Kakoune and Helix
@@ -230,10 +238,31 @@ func (b *Buffer) shiftSelection(selection *Selection, direction SelectionDirecti
 	}
 }
 
-func (b *Buffer) ContentsForRendering() iter.Seq[[]rune] {
-	return func(yield func([]rune) bool) {
-		for _, line := range b.contents {
-			if !yield(line.runes) {
+// ContentsForRendering is an iterator that yields a Renderable line for each line to be rendered to the
+// terminal. Line wrapping is done here.
+func (b *Buffer) ContentsForRendering(startLine, contentHeight, contentWidth int) iter.Seq[*RenderableLine] {
+	// the latest line is the possible last line accoring to contentHeight, but not guaranteed to be
+	// displayed because some lines might wrap. Clamp it to the last content line if necessary.
+	latestLine := min(startLine+contentHeight, len(b.contents))
+
+	return func(yield func(*RenderableLine) bool) {
+		for i := startLine; i < latestLine; i++ {
+			renderableLine := &RenderableLine{RenderedRows: 1}
+
+			// if the line length is greater than the width then wrap
+			if b.contents[i].length > uint(contentWidth) {
+				wrappedLine := make([]string, 0, 2)
+				for chunk := range slices.Chunk(b.contents[i].runes, contentWidth) {
+					wrappedLine = append(wrappedLine, string(chunk))
+					renderableLine.RenderedRows += 1
+				}
+
+				renderableLine.LineContents = strings.Join(wrappedLine, "\n")
+			} else {
+				renderableLine.LineContents = string(b.contents[i].runes)
+			}
+
+			if !yield(renderableLine) {
 				return
 			}
 		}
@@ -268,9 +297,4 @@ func (b *Buffer) ContentsForRendering() iter.Seq[[]rune] {
 // 	// TODO: do the permissions here overwrite existing or is it only for new files?
 // 	err := os.WriteFile(*b.backingFile, b.asBytes(), 0666)
 // 	return err
-// }
-
-// asBytes convert the buffer contents to bytes
-// func (b *Buffer) asBytes() []byte {
-// 	return []byte(strings.Join(b.lines, "\n"))
 // }

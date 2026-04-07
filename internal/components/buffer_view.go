@@ -1,6 +1,7 @@
 package components
 
 import (
+	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -34,24 +35,52 @@ func (b *BufferView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (b *BufferView) View() tea.View {
-	// calculate the number of chars in the view
-	// area := b.width * b.height
+	// just hardcode this for now 3 nums + space
+	lineNumWidth := 4
+
+	contentHeight := b.height - 1
+	contentWidth := b.width - lineNumWidth
+
+	lineNumStyle := lipgloss.NewStyle().
+		Foreground(b.theme.Fg).
+		Background(b.theme.Bg).
+		Width(lineNumWidth).
+		Height(contentHeight)
+
 	contentStyle := lipgloss.NewStyle().
 		Foreground(b.theme.ModelineInputModeFg).
 		Background(b.theme.ModelineInputModeBg).
-		Width(b.width).
-		Height(b.height - 1)
+		Width(contentWidth).
+		Height(contentHeight)
+
+	startLine := 0
+	lineNum := startLine
 
 	var contents strings.Builder
-	for lineRunes := range b.buffer.ContentsForRendering() {
-		// line is greater than the size so it needs to wrap
-		contents.WriteString(string(lineRunes))
+	var lineNums strings.Builder
+	for renderableLine := range b.buffer.ContentsForRendering(startLine, contentHeight, contentWidth) {
+		contents.WriteString(renderableLine.LineContents + "\n")
+
+		lineNums.WriteString(strconv.Itoa(lineNum + 1))
+
+		if renderableLine.RenderedRows == 1 {
+			lineNums.WriteString("\n")
+		} else {
+			lineNums.WriteString(strings.Repeat("\n", renderableLine.RenderedRows-1))
+		}
+
+		lineNum += 1
 	}
 
 	layout := lipgloss.JoinVertical(
 		lipgloss.Left,
 		b.modeline.View().Content,
-		contentStyle.Render(contents.String()))
+		lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			lineNumStyle.Render(lineNums.String()),
+			contentStyle.Render(contents.String()),
+		),
+	)
 
 	return tea.NewView(layout)
 }

@@ -180,6 +180,20 @@ func TestShiftSelectionLeft(t *testing.T) {
 
 // }
 
+func TestBufferContentsForRendering(t *testing.T) {
+	// Test starting at 0
+
+	// Test starting at a different line
+
+	// Test content less than lines
+
+	// Test latest line
+
+	// Test line wrap
+
+	// no line wrap
+}
+
 // func TestBufferWithBadFile(t *testing.T) {
 // 	_, err := NewBufferWithFile("badfile")
 // 	if err == nil {

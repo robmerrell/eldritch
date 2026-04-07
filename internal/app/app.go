@@ -94,7 +94,7 @@ func Init() rootModel {
 
 	// initial empty buffer
 	buffer := buffer.NewBuffer()
-	buffer.SetContents([]rune("hello\nworld\nthis\nis a buffer"))
+	buffer.SetContents([]rune("hello this is a really long line that should wrap because we hit the maximum width of the terminal that can display it. We also need to test how wrap characters get inserted\nworld\nthis\nis a buffer"))
 
 	return rootModel{
 		theme:             theme,
