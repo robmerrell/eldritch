@@ -9,7 +9,14 @@ import (
 )
 
 func main() {
-	p := tea.NewProgram(app.Init())
+	fileName := "./README.md"
+	eldApp, err := app.Init(&fileName)
+	if err != nil {
+		fmt.Println("fatal:", err)
+		os.Exit(1)
+	}
+
+	p := tea.NewProgram(eldApp)
 
 	// debug logging
 	f, err := tea.LogToFile("/tmp/eld_debug.log", "debug")

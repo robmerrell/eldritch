@@ -89,16 +89,26 @@ func (m rootModel) handleInsertStateKey(key string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func Init() rootModel {
+func Init(fileName *string) (rootModel, error) {
 	theme := themes.BatSquatch()
 
 	// initial empty buffer
-	buffer := buffer.NewBuffer()
-	buffer.SetContents([]rune("hello this is a really long line that should wrap because we hit the maximum width of the terminal that can display it. We also need to test how wrap characters get inserted\nworld\nthis\nis a buffer"))
+	var startBuffer *buffer.Buffer
+
+	if fileName == nil {
+		startBuffer = buffer.NewBuffer()
+		startBuffer.SetContents([]rune("hello this is a really long line that should wrap because we hit the maximum width of the terminal that can display it. We also need to test how wrap characters get inserted\nworld\nthis\nis a buffer"))
+	} else {
+		var err error
+		startBuffer, err = buffer.NewBufferWithFile(*fileName)
+		if err != nil {
+			return rootModel{}, err
+		}
+	}
 
 	return rootModel{
 		theme:             theme,
 		currentInputState: InputStateNormal,
-		rootView:          components.NewBufferView(buffer, theme),
-	}
+		rootView:          components.NewBufferView(startBuffer, theme),
+	}, nil
 }

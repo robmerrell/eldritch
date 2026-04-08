@@ -1,6 +1,7 @@
 package buffer
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -181,91 +182,94 @@ func TestShiftSelectionLeft(t *testing.T) {
 // }
 
 func TestBufferContentsForRendering(t *testing.T) {
-	// Test starting at 0
+	buffer, err := NewBufferWithFile("testdata/render.txt")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 
-	// Test starting at a different line
+	assertLines := func(start, height, width int, assertion string) {
+		content := []string{}
+		for line := range buffer.ContentsForRendering(start, height, width) {
+			content = append(content, string(line.LineContents))
+		}
 
-	// Test content less than lines
+		strContent := strings.Join(content, "\n")
+		if strContent != assertion {
+			t.Errorf("got:\n%s \nwanted:\n%s", strContent, assertion)
+		}
+	}
 
-	// Test latest line
+	// starting at 0
+	assertLines(0, 3, 100,
+		"This is a file used to test the renderer.\n"+
+			"We want to\n"+
+			"make sure that it can")
+
+	// starting at a non zero line (like we scrolled)
+	assertLines(1, 2, 100,
+		"We want to\n"+
+			"make sure that it can")
+
+	// more lines to display than there is content
+	assertLines(0, 100, 100,
+		"This is a file used to test the renderer.\n"+
+			"We want to\n"+
+			"make sure that it can\n"+
+			"handle showing partial content, wrapping lines, etc.\n")
+
+	// Test last line
+	assertLines(3, 100, 100,
+		"handle showing partial content, wrapping lines, etc.\n")
 
 	// Test line wrap
+	assertLines(0, 2, 15,
+		"This is a file \n"+
+			"used to test th\n"+
+			"e renderer.\n"+
+			"We want to")
 
-	// no line wrap
 }
 
-// func TestBufferWithBadFile(t *testing.T) {
-// 	_, err := NewBufferWithFile("badfile")
-// 	if err == nil {
-// 		t.Fatalf("Expected error, got none")
-// 	}
-// }
+func TestBufferWithBadFile(t *testing.T) {
+	_, err := NewBufferWithFile("badfile")
+	if err == nil {
+		t.Fatalf("Expected error, got none")
+	}
+}
 
-// func TestBufferWithFile(t *testing.T) {
-// 	buffer, err := NewBufferWithFile("testdata/file.txt")
-// 	if err != nil {
-// 		t.Fatalf("Unexpected error: %v", err)
-// 	}
+func TestBufferWithFile(t *testing.T) {
+	buffer, err := NewBufferWithFile("testdata/file.txt")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 
-// 	for i, a := range buffer.lines {
-// 		fmt.Printf("%d %s\n", i, a)
-// 	}
+	// backing file
+	if got, want := (*buffer.backingFile), "testdata/file.txt"; got != want {
+		t.Errorf("file=%s, want=%s", got, want)
+	}
 
-// 	// backing file
-// 	if got, want := (*buffer.backingFile), "testdata/file.txt"; got != want {
-// 		t.Errorf("file=%s, want=%s", got, want)
-// 	}
+	// line length
+	if got, want := len(buffer.contents), 3; got != want {
+		t.Errorf("length=%d, want=%d", got, want)
+	}
 
-// 	// line length
-// 	if got, want := len(buffer.lines), 3; got != want {
-// 		t.Errorf("length=%d, want=%d", got, want)
-// 	}
+	// file contents
+	if got, want := string(buffer.contents[0].runes), "line 1"; got != want {
+		t.Errorf("line=%s, want=%s", got, want)
+	}
+	if got, want := string(buffer.contents[1].runes), "line 2"; got != want {
+		t.Errorf("line=%s, want=%s", got, want)
+	}
+	if got, want := string(buffer.contents[2].runes), "line 3"; got != want {
+		t.Errorf("line=%s, want=%s", got, want)
+	}
+}
 
-// 	// file contents
-// 	if got, want := (buffer.lines[0]), "line 1"; got != want {
-// 		t.Errorf("line=%s, want=%s", got, want)
-// 	}
-// 	if got, want := (buffer.lines[1]), "line 2"; got != want {
-// 		t.Errorf("line=%s, want=%s", got, want)
-// 	}
-// 	if got, want := (buffer.lines[2]), "line 3"; got != want {
-// 		t.Errorf("line=%s, want=%s", got, want)
-// 	}
-// }
+func TestClear(t *testing.T) {
+	buffer := &Buffer{}
+	buffer.Clear()
 
-// func TestClear(t *testing.T) {
-// 	buffer := &Buffer{}
-// 	buffer.Clear()
-
-// 	if got, want := len(buffer.lines), DefaultLineSize; got != want {
-// 		t.Fatalf("length=%d, want=%d", got, want)
-// 	}
-// }
-
-// func TestSaveNotFileBacked(t *testing.T) {
-// 	buffer := NewBuffer()
-
-// 	if err := buffer.Save(); !errors.Is(err, ErrNotFileBackedBuffer) {
-// 		t.Fatalf("error=%v, want=not buffer backed", err)
-// 	}
-// }
-
-// func TestSave(t *testing.T) {
-// 	tempDir := t.TempDir()
-// 	tempFile := filepath.Join(tempDir, "input.txt")
-// 	os.WriteFile(tempFile, []byte{}, 0666)
-
-// 	buffer, err := NewBufferWithFile(tempFile)
-// 	if err != nil {
-// 		t.Fatalf("Unexpected error: %v", err)
-// 	}
-
-// 	if err := buffer.Save(); err != nil {
-// 		t.Fatalf("Unexpected error: %v", err)
-// 	}
-
-// 	t.Error("ok")
-
-// 	contents, _ := os.ReadFile(tempFile)
-// 	fmt.Println(string(contents))
-// }
+	if got, want := cap(buffer.contents), DefaultLineCap; got != want {
+		t.Fatalf("cap=%d, want=%d", got, want)
+	}
+}

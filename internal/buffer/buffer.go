@@ -23,9 +23,10 @@ package buffer
 //             S
 
 import (
+	"bufio"
 	"errors"
-	"fmt"
 	"iter"
+	"os"
 	"slices"
 	"strings"
 )
@@ -83,12 +84,12 @@ func NewBuffer() *Buffer {
 }
 
 // NewBufferWithFile creates a new file backed buffer.
-// func NewBufferWithFile(filePath string) (*Buffer, error) {
-// 	buffer := NewBuffer()
-// 	err := buffer.LoadFile(filePath)
+func NewBufferWithFile(filePath string) (*Buffer, error) {
+	buffer := NewBuffer()
+	err := buffer.LoadFile(filePath)
 
-// 	return buffer, err
-// }
+	return buffer, err
+}
 
 // Clear clears the buffer input by reallocating the content container.
 func (b *Buffer) Clear() {
@@ -99,33 +100,6 @@ func (b *Buffer) Clear() {
 // AssignName gives the buffer a name
 func (b *Buffer) AssignName(name string) {
 	b.name = &name
-}
-
-// PrintDbg prints out a line and selection position to use before I'm actually rendering anything.
-func (b *Buffer) PrintDbg(lineNum uint) {
-	line := b.contents[lineNum]
-
-	fmt.Println(string(line.runes))
-
-	// draw any selections on the line
-	for _, selection := range b.selections {
-		selectionOut := make([]string, len(line.runes)+1)
-		for i := range selectionOut {
-			selectionOut[i] = " "
-		}
-
-		if selection.AnchorY == lineNum && selection.HeadY == lineNum {
-			selectionOut[selection.AnchorX] = "A"
-
-			if selectionOut[selection.HeadX] != " " {
-				selectionOut[selection.HeadX] = "B"
-			} else {
-				selectionOut[selection.HeadX] = "H"
-			}
-		}
-
-		fmt.Println(strings.Join(selectionOut, ""))
-	}
 }
 
 // Insert inserts a rune at all selection positions. Characters are inserted before the selection.
@@ -270,31 +244,22 @@ func (b *Buffer) ContentsForRendering(startLine, contentHeight, contentWidth int
 }
 
 // LoadFile loads a file into the buffer
-// func (b *Buffer) LoadFile(filePath string) error {
-// 	contents, err := os.ReadFile(filePath)
-// 	if err != nil {
-// 		return err
-// 	}
+func (b *Buffer) LoadFile(filePath string) error {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
 
-// 	b.backingFile = &filePath
-// 	b.lines = strings.Split(string(contents), "\n")
+	b.contents = make([]line, 0)
+	b.backingFile = &filePath
 
-// 	// drop the last empty newline for our buffer represenation
-// 	// because newlines are automatically added.
-// 	if b.lines[len(b.lines)-1] == "" {
-// 		b.lines = b.lines[:len(b.lines)-1]
-// 	}
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lineRunes := []rune(scanner.Text())
+		line := line{runes: lineRunes, length: uint(len(lineRunes))}
+		b.contents = append(b.contents, line)
+	}
 
-// 	return nil
-// }
-
-// Save writes the buffer to disk
-// func (b *Buffer) Save() error {
-// 	if b.backingFile == nil {
-// 		return ErrNotFileBackedBuffer
-// 	}
-
-// 	// TODO: do the permissions here overwrite existing or is it only for new files?
-// 	err := os.WriteFile(*b.backingFile, b.asBytes(), 0666)
-// 	return err
-// }
+	return nil
+}
