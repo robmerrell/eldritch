@@ -1,6 +1,7 @@
 package buffer
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -190,7 +191,8 @@ func TestBufferContentsForRendering(t *testing.T) {
 	assertLines := func(start, height, width int, assertion string) {
 		content := []string{}
 		for line := range buffer.ContentsForRendering(start, height, width) {
-			content = append(content, string(line.LineContents))
+			lineStr := fmt.Sprintf("%d %s", line.RenderedRows, line.LineContents)
+			content = append(content, lineStr)
 		}
 
 		strContent := strings.Join(content, "\n")
@@ -201,32 +203,34 @@ func TestBufferContentsForRendering(t *testing.T) {
 
 	// starting at 0
 	assertLines(0, 3, 100,
-		"This is a file used to test the renderer.\n"+
-			"We want to\n"+
-			"make sure that it can")
+		"1 This is a file used to test the renderer.\n"+
+			"1 We want to\n"+
+			"1 make sure that it can")
 
 	// starting at a non zero line (like we scrolled)
 	assertLines(1, 2, 100,
-		"We want to\n"+
-			"make sure that it can")
+		"1 We want to\n"+
+			"1 make sure that it can")
 
 	// more lines to display than there is content
 	assertLines(0, 100, 100,
-		"This is a file used to test the renderer.\n"+
-			"We want to\n"+
-			"make sure that it can\n"+
-			"handle showing partial content, wrapping lines, etc.\n")
+		"1 This is a file used to test the renderer.\n"+
+			"1 We want to\n"+
+			"1 make sure that it can\n"+
+			"1 handle showing partial content, wrapping lines, etc.\n"+
+			"1 ")
 
 	// Test last line
 	assertLines(3, 100, 100,
-		"handle showing partial content, wrapping lines, etc.\n")
+		"1 handle showing partial content, wrapping lines, etc.\n"+
+			"1 ")
 
 	// Test line wrap
 	assertLines(0, 2, 15,
-		"This is a file \n"+
+		"4 This is a file \n"+
 			"used to test th\n"+
 			"e renderer.\n"+
-			"We want to")
+			"1 We want to")
 
 }
 

@@ -29,6 +29,11 @@ func (b *BufferView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		b.width = msg.Width
 		b.height = msg.Height
+
+		// case state.MsgModeKeyPress:
+		// 	switch msg.Mode {
+		// 	case state.InputModeNormal:
+		// 	}
 	}
 
 	return b, cmd

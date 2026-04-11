@@ -1,25 +1,19 @@
 package app
 
 import (
+	"log"
+
 	tea "charm.land/bubbletea/v2"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/robmerrell/eldritch/internal/buffer"
 	"github.com/robmerrell/eldritch/internal/components"
+	"github.com/robmerrell/eldritch/internal/state"
 	"github.com/robmerrell/eldritch/internal/themes"
 )
 
-type InputState int
-
-const (
-	// Similar to normal mode in Kakoune
-	InputStateNormal InputState = iota
-
-	// Insert characters
-	InputStateInsert
-)
-
 type rootModel struct {
-	theme             *themes.Theme
-	currentInputState InputState
+	theme            *themes.Theme
+	currentInputMode state.InputMode
 
 	// screen sizes
 	screenWidth  int
@@ -33,26 +27,6 @@ func (m rootModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.screenWidth = msg.Width
-		m.screenHeight = msg.Height
-		m.rootView.Update(msg)
-
-	// handle keypress events
-	case tea.KeyPressMsg:
-		switch m.currentInputState {
-		case InputStateNormal:
-			return m.handleNormalStateKey(msg.String())
-		case InputStateInsert:
-			return m.handleInsertStateKey(msg.String())
-		}
-	}
-
-	return m, nil
-}
-
 func (m rootModel) View() tea.View {
 	mainView := tea.NewView(m.rootView.View().Content)
 	mainView.AltScreen = true
@@ -62,31 +36,76 @@ func (m rootModel) View() tea.View {
 	return mainView
 }
 
-func (m rootModel) handleNormalStateKey(key string) (tea.Model, tea.Cmd) {
-	switch key {
-	// quit for now
-	case "ctrl+c":
-		return m, tea.Quit
+func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// log out the messages
+	log.Println(spew.Sdump(msg))
 
-	// insert mode
-	case "i":
-		m.currentInputState = InputStateInsert
-		return m, nil
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.screenWidth = msg.Width
+		m.screenHeight = msg.Height
+		m.rootView.Update(msg)
+
+	// handle keypress events. We only handle state global state transitions in
+	// this module. Everything else is delegated to components.
+	case tea.KeyPressMsg:
+		switch m.currentInputMode {
+		case state.InputModeNormal:
+			return m.handleNormalModeKey(msg)
+		case state.InputModeInsert:
+			return m.handleInsertModeKey(msg)
+		}
 	}
 
 	return m, nil
 }
 
-func (m rootModel) handleInsertStateKey(key string) (tea.Model, tea.Cmd) {
-	switch key {
-	// exit insert state with esc or ctrl-g
-	case "esc", "ctrl+g":
-		m.currentInputState = InputStateNormal
+func (m rootModel) handleNormalModeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c":
+		// quit for now
+		return m, tea.Quit
 
-		// insert rune keys
+	case "alt-x", ":":
+		// enter command mode
+		return m, m.enterMode(state.InputModeCommand)
+
+	case "i":
+		// enter insert mode
+		return m, m.enterMode(state.InputModeInsert)
 	}
 
-	return m, nil
+	// anything else send to the active buffer view
+	// wrap the event in the current state before sending it
+	_, rootCmd := m.rootView.Update(state.MsgModeKeyPress{Mode: m.currentInputMode, PressMsg: msg})
+	return m, rootCmd
+}
+
+func (m rootModel) handleInsertModeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	// exit insert mode
+	case "esc", "ctrl+g":
+		return m, m.enterMode(state.InputModeNormal)
+
+	case "i":
+		return m, m.enterMode(state.InputModeInsert)
+	}
+
+	// anything else send to the active buffer view
+	// wrap the event in the current state before sending it
+	_, rootCmd := m.rootView.Update(state.MsgModeKeyPress{Mode: m.currentInputMode, PressMsg: msg})
+	return m, rootCmd
+}
+
+// enterMode switches the input mode and then returns a wrapped event to pass along
+// to the child components.
+func (m rootModel) enterMode(mode state.InputMode) tea.Cmd {
+	m.currentInputMode = mode
+	return nil
+
+	// return func() tea.Msg {
+	// 	return statusChangeMsg(s)
+	// }
 }
 
 func Init(fileName *string) (rootModel, error) {
@@ -107,8 +126,8 @@ func Init(fileName *string) (rootModel, error) {
 	}
 
 	return rootModel{
-		theme:             theme,
-		currentInputState: InputStateNormal,
-		rootView:          components.NewBufferView(startBuffer, theme),
+		theme:            theme,
+		currentInputMode: state.InputModeNormal,
+		rootView:         components.NewBufferView(startBuffer, theme),
 	}, nil
 }
