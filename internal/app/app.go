@@ -100,12 +100,12 @@ func (m *rootModel) handleInsertModeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 // enterMode switches the input mode and then returns a wrapped event to pass along
 // to the child components.
 func (m *rootModel) enterMode(mode state.InputMode) tea.Cmd {
+	msg := state.MsgModeChanged{OldMode: m.currentInputMode, NewMode: mode}
 	m.currentInputMode = mode
-	return nil
 
-	// return func() tea.Msg {
-	// 	return statusChangeMsg(s)
-	// }
+	return func() tea.Msg {
+		return msg
+	}
 }
 
 func Init(fileName *string) (*rootModel, error) {
