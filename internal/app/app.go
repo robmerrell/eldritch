@@ -23,11 +23,11 @@ type rootModel struct {
 	rootView *components.BufferView
 }
 
-func (m rootModel) Init() tea.Cmd {
+func (m *rootModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m rootModel) View() tea.View {
+func (m *rootModel) View() tea.View {
 	mainView := tea.NewView(m.rootView.View().Content)
 	mainView.AltScreen = true
 	mainView.BackgroundColor = m.theme.Bg
@@ -36,7 +36,7 @@ func (m rootModel) View() tea.View {
 	return mainView
 }
 
-func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// log out the messages
 	log.Println(spew.Sdump(msg))
 
@@ -60,7 +60,7 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m rootModel) handleNormalModeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (m *rootModel) handleNormalModeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c":
 		// quit for now
@@ -81,7 +81,7 @@ func (m rootModel) handleNormalModeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 	return m, rootCmd
 }
 
-func (m rootModel) handleInsertModeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (m *rootModel) handleInsertModeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	// exit insert mode
 	case "esc", "ctrl+g":
@@ -99,7 +99,7 @@ func (m rootModel) handleInsertModeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 
 // enterMode switches the input mode and then returns a wrapped event to pass along
 // to the child components.
-func (m rootModel) enterMode(mode state.InputMode) tea.Cmd {
+func (m *rootModel) enterMode(mode state.InputMode) tea.Cmd {
 	m.currentInputMode = mode
 	return nil
 
@@ -108,7 +108,7 @@ func (m rootModel) enterMode(mode state.InputMode) tea.Cmd {
 	// }
 }
 
-func Init(fileName *string) (rootModel, error) {
+func Init(fileName *string) (*rootModel, error) {
 	theme := themes.BatSquatch()
 
 	// initial empty buffer
@@ -121,11 +121,11 @@ func Init(fileName *string) (rootModel, error) {
 		var err error
 		startBuffer, err = buffer.NewBufferWithFile(*fileName)
 		if err != nil {
-			return rootModel{}, err
+			return nil, err
 		}
 	}
 
-	return rootModel{
+	return &rootModel{
 		theme:            theme,
 		currentInputMode: state.InputModeNormal,
 		rootView:         components.NewBufferView(startBuffer, theme),
