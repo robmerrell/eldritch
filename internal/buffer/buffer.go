@@ -182,10 +182,11 @@ func (b *Buffer) shiftSelection(selection *Selection, direction SelectionDirecti
 	case SelectionDirectionDown:
 		// if on the last line don't move
 		if selection.HeadY < uint(len(b.contents)-1) {
-			// if next line is shorter than current move to end of next line
+			// if next line is shorter than current move to end of next line if cursor is
+			// past the position of the next line's end.
 			lineLength := b.contents[selection.HeadY].length
 			nextLineLength := b.contents[selection.HeadY+1].length
-			if nextLineLength < lineLength {
+			if nextLineLength < lineLength && selection.HeadX > nextLineLength {
 				selection.HeadX = nextLineLength
 				selection.AnchorX = nextLineLength
 			}
