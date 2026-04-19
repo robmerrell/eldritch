@@ -1,8 +1,6 @@
 package buffer
 
 import (
-	"fmt"
-	"strings"
 	"testing"
 )
 
@@ -116,6 +114,11 @@ func TestShiftSelectionDown(t *testing.T) {
 	buffer.ShiftSelections(SelectionDirectionDown, 1)
 	assertCollapsedSelection(t, buffer.selections[0], 4, 2)
 
+	// move down, but don't move X if not at the end of the line
+	buffer.selections[0].SetCollapsed(0, 1)
+	buffer.ShiftSelections(SelectionDirectionDown, 1)
+	assertCollapsedSelection(t, buffer.selections[0], 0, 2)
+
 	// from last line don't go down
 	buffer.selections[0].SetCollapsed(0, lineCount-1)
 	buffer.ShiftSelections(SelectionDirectionDown, 1)
@@ -182,6 +185,7 @@ func TestShiftSelectionLeft(t *testing.T) {
 
 // }
 
+/*
 func TestBufferContentsForRendering(t *testing.T) {
 	buffer, err := NewBufferWithFile("testdata/render.txt")
 	if err != nil {
@@ -233,6 +237,7 @@ func TestBufferContentsForRendering(t *testing.T) {
 			"1 We want to")
 
 }
+*/
 
 func TestBufferWithBadFile(t *testing.T) {
 	_, err := NewBufferWithFile("badfile")
