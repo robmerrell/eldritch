@@ -42,31 +42,6 @@ type line struct {
 	length int
 }
 
-type DecoratorType int
-
-const (
-	DecoratorTypeSelectionHead DecoratorType = iota
-	DecoratorTypeSelectionTail
-	DecoratorTypeNone
-)
-
-type Decorator struct {
-	Begin int
-	End   int
-	Type  DecoratorType
-}
-
-// RenderableLine stores a line ready for rendering. This includes any overlays necessary for the line.
-type RenderableLine struct {
-	// LineContents holds a slice of runes for each wrapped line.
-	LineContents [][]rune
-
-	Decorators []Decorator
-
-	// TODO: can this go away now that we can len LineContents?
-	RenderedRows int
-}
-
 // Buffer is the backing structure for an editable document. Similar to Kakoune and Helix
 // buffers can have multiple selections active at one time.
 type Buffer struct {
