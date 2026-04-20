@@ -39,7 +39,7 @@ const DefaultRuneCap = 256
 // line holds line contents and the length
 type line struct {
 	runes  []rune
-	length uint
+	length int
 }
 
 type DecoratorType int
@@ -154,14 +154,14 @@ func (b *Buffer) SetContents(contents []rune) {
 }
 
 // ShiftSelections shifts all selections in a direction
-func (b *Buffer) ShiftSelections(direction SelectionDirection, count uint) {
+func (b *Buffer) ShiftSelections(direction SelectionDirection, count int) {
 	for _, selection := range b.selections {
 		b.shiftSelection(selection, direction, count)
 	}
 }
 
 // shiftSelection shifts a specified selection in a direction
-func (b *Buffer) shiftSelection(selection *Selection, direction SelectionDirection, count uint) {
+func (b *Buffer) shiftSelection(selection *Selection, direction SelectionDirection, count int) {
 	switch direction {
 	case SelectionDirectionUp:
 		// if on the first line don't move
@@ -184,7 +184,7 @@ func (b *Buffer) shiftSelection(selection *Selection, direction SelectionDirecti
 		// selection at the end of the line
 		if selection.HeadX > line.length-1 {
 			// if not the last line wrap around to the next
-			if selection.HeadY < uint(len(b.contents)-1) {
+			if selection.HeadY < len(b.contents)-1 {
 				selection.SetCollapsed(0, selection.HeadY+1)
 			}
 
@@ -197,7 +197,7 @@ func (b *Buffer) shiftSelection(selection *Selection, direction SelectionDirecti
 
 	case SelectionDirectionDown:
 		// if on the last line don't move
-		if selection.HeadY < uint(len(b.contents)-1) {
+		if selection.HeadY < len(b.contents)-1 {
 			// if next line is shorter than current move to end of next line if cursor is
 			// past the position of the next line's end.
 			lineLength := b.contents[selection.HeadY].length
@@ -248,55 +248,6 @@ func (b *Buffer) Selections() []*Selection {
 	return b.selections
 }
 
-// ContentsForRendering is an iterator that yields a Renderable line for each line to be rendered to the
-// terminal. Line wrapping is done here.
-/*
-func (b *Buffer) ContentsForRendering(startLine, contentHeight, contentWidth int) iter.Seq[*RenderableLine] {
-	// the latest line is the possible last line accoring to contentHeight, but not guaranteed to be
-	// displayed because some lines might wrap. Clamp it to the last content line if necessary.
-	latestLine := min(startLine+contentHeight, len(b.contents))
-
-	return func(yield func(*RenderableLine) bool) {
-		for i := startLine; i < latestLine; i++ {
-			// renderableLine := &RenderableLine{
-			// 	RenderedRows: 1,
-			// 	LineContents: make([][]rune, 1),
-			// 	LineSegments: make([]LineSegment, 1),
-			// }
-
-			// for _, selection := range b.selections {
-			// 	// add selection head decorators
-			// 	if int(selection.HeadY) == i {
-			// 		renderableLine.Decorators = append(renderableLine.Decorators, Decorator{
-			// 			Begin: int(selection.HeadX),
-			// 			End:   int(selection.HeadX),
-			// 			Type:  DecoratorTypeSelectionHead,
-			// 		})
-			// 	}
-
-			// 	// add selection tail decorators
-			// 	// if tailOffset := selection.TailOffsetsForLine(i) {
-			// 	// }
-			// }
-
-			// // if the line length is greater than the width then wrap
-			// if b.contents[i].length > uint(contentWidth) {
-			// 	for chunk := range slices.Chunk(b.contents[i].runes, contentWidth) {
-			// 		renderableLine.RenderedRows += 1
-			// 		renderableLine.LineContents = append(renderableLine.LineContents, chunk)
-			// 	}
-			// } else {
-			// 	renderableLine.LineContents[0] = b.contents[i].runes
-			// }
-
-			if !yield(renderableLine) {
-				return
-			}
-		}
-	}
-}
-*/
-
 // LoadFile loads a file into the buffer
 func (b *Buffer) LoadFile(filePath string) error {
 	file, err := os.Open(filePath)
@@ -311,7 +262,7 @@ func (b *Buffer) LoadFile(filePath string) error {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		lineRunes := []rune(scanner.Text())
-		line := line{runes: lineRunes, length: uint(len(lineRunes))}
+		line := line{runes: lineRunes, length: len(lineRunes)}
 		b.contents = append(b.contents, line)
 	}
 

@@ -8,7 +8,7 @@ func strRune(input string) rune {
 	return []rune(input)[0]
 }
 
-func assertCollapsedSelection(t *testing.T, sel *Selection, x, y uint) {
+func assertCollapsedSelection(t *testing.T, sel *Selection, x, y int) {
 	t.Helper()
 
 	if sel.AnchorX != x {
@@ -101,7 +101,7 @@ func TestShiftSelectionUp(t *testing.T) {
 
 func TestShiftSelectionDown(t *testing.T) {
 	buffer := setupSelectionBuffer()
-	lineCount := uint(len(buffer.contents))
+	lineCount := len(buffer.contents)
 
 	// from 0 goes down
 	buffer.selections[0].SetCollapsed(0, 0)
@@ -128,7 +128,7 @@ func TestShiftSelectionDown(t *testing.T) {
 func TestShiftSelectionRight(t *testing.T) {
 	buffer := setupSelectionBuffer()
 	line := buffer.contents[0]
-	lineCount := uint(len(buffer.contents))
+	lineCount := len(buffer.contents)
 
 	// from 0 moves right
 	buffer.selections[0].SetCollapsed(0, 0)
