@@ -1,12 +1,16 @@
 package components
 
 import (
-	"strconv"
+	"log"
+	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/davecgh/go-spew/spew"
+	"github.com/muesli/reflow/wrap"
 	"github.com/robmerrell/eldritch/internal/buffer"
+	"github.com/robmerrell/eldritch/internal/state"
 	"github.com/robmerrell/eldritch/internal/themes"
 )
 
@@ -23,23 +27,36 @@ func (b *BufferView) Init() tea.Cmd {
 }
 
 func (b *BufferView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	_, cmd := b.modeline.Update(msg)
-
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		b.width = msg.Width
 		b.height = msg.Height
 
-		// case state.MsgModeKeyPress:
-		// 	switch msg.Mode {
-		// 	case state.InputModeNormal:
-		// 	}
+	case state.MsgModeKeyPress:
+		if msg.Mode == state.InputModeNormal {
+			switch msg.PressMsg.String() {
+			case "h":
+				b.buffer.ShiftSelections(buffer.SelectionDirectionLeft, 1)
+			case "j":
+				b.buffer.ShiftSelections(buffer.SelectionDirectionDown, 1)
+			case "k":
+				b.buffer.ShiftSelections(buffer.SelectionDirectionUp, 1)
+			case "l":
+				b.buffer.ShiftSelections(buffer.SelectionDirectionRight, 1)
+			}
+		}
 	}
 
+	_, cmd := b.modeline.Update(msg)
 	return b, cmd
 }
 
 func (b *BufferView) View() tea.View {
+	// if we don't have a screen width/height yet don't render anything
+	if b.height < 1 || b.width < 1 {
+		return tea.NewView("")
+	}
+
 	// just hardcode this for now 3 nums + space
 	lineNumWidth := 4
 
@@ -58,23 +75,42 @@ func (b *BufferView) View() tea.View {
 		Width(contentWidth).
 		Height(contentHeight)
 
+	selectionHeadInlineStyle := lipgloss.NewStyle().
+		Foreground(b.theme.ModelineInputModeBg).
+		Background(b.theme.ModelineInputModeFg).Render
 	startLine := 0
-	lineNum := startLine
+	// lineNum := startLine
 
 	var contents strings.Builder
 	var lineNums strings.Builder
-	for renderableLine := range b.buffer.ContentsForRendering(startLine, contentHeight, contentWidth) {
-		contents.WriteString(renderableLine.LineContents + "\n")
+	renderableContents := b.buffer.ContentsForRendering(startLine, startLine+contentHeight)
 
-		lineNums.WriteString(strconv.Itoa(lineNum + 1))
-
-		if renderableLine.RenderedRows == 1 {
-			lineNums.WriteString("\n")
-		} else {
-			lineNums.WriteString(strings.Repeat("\n", renderableLine.RenderedRows-1))
+	for i := range renderableContents {
+		if len(renderableContents[i]) == 0 {
+			renderableContents[i] = " "
 		}
+	}
 
-		lineNum += 1
+	// render selections into the contents. Replace this.
+	for _, selection := range b.buffer.Selections() {
+		log.Println("=========")
+		v := renderableContents[selection.HeadY]
+		log.Println(spew.Sdump(v))
+		log.Printf("x:%d, y:%d, len %d", selection.HeadX, selection.HeadY, len(v))
+		log.Println("=========")
+		if int(selection.HeadX) < len(v) {
+			line := []rune(renderableContents[selection.HeadY])
+			value := []rune(selectionHeadInlineStyle(string(line[selection.HeadX])))
+			merged := slices.Replace(line, int(selection.HeadX), 1, value...)
+			renderableContents[selection.HeadY] = string(merged)
+		}
+	}
+
+	for _, line := range renderableContents {
+		lineWriter := wrap.NewWriter(contentWidth)
+		lineWriter.Write([]byte(line))
+
+		contents.WriteString(lineWriter.String() + "\n")
 	}
 
 	layout := lipgloss.JoinVertical(

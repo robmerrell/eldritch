@@ -25,10 +25,8 @@ package buffer
 import (
 	"bufio"
 	"errors"
-	"iter"
 	"os"
 	"slices"
-	"strings"
 )
 
 // errors
@@ -44,10 +42,28 @@ type line struct {
 	length uint
 }
 
-// RenderableLine stores a line ready for rendering. This includes already split out into multiple
-// display lines for word wrapping.
+type DecoratorType int
+
+const (
+	DecoratorTypeSelectionHead DecoratorType = iota
+	DecoratorTypeSelectionTail
+	DecoratorTypeNone
+)
+
+type Decorator struct {
+	Begin int
+	End   int
+	Type  DecoratorType
+}
+
+// RenderableLine stores a line ready for rendering. This includes any overlays necessary for the line.
 type RenderableLine struct {
-	LineContents string
+	// LineContents holds a slice of runes for each wrapped line.
+	LineContents [][]rune
+
+	Decorators []Decorator
+
+	// TODO: can this go away now that we can len LineContents?
 	RenderedRows int
 }
 
@@ -213,8 +229,28 @@ func (b *Buffer) shiftSelection(selection *Selection, direction SelectionDirecti
 	}
 }
 
+// ContentsForRendering returns a portion of the buffer suitable for rendering. This startLine is
+// the first line to render and the maxLine is the last possible line to render. Possible because
+// the viewport might be able to render 25 lines, but the buffer only has 5. So just the 5 are returned.
+func (b *Buffer) ContentsForRendering(startLine, maxLine int) []string {
+	lineCount := len(b.contents)
+	latestLine := min(maxLine, lineCount)
+
+	lineContents := make([]string, latestLine-startLine)
+	for i := startLine; i < latestLine; i++ {
+		lineContents[i-startLine] = string(b.contents[i].runes)
+	}
+
+	return lineContents
+}
+
+func (b *Buffer) Selections() []*Selection {
+	return b.selections
+}
+
 // ContentsForRendering is an iterator that yields a Renderable line for each line to be rendered to the
 // terminal. Line wrapping is done here.
+/*
 func (b *Buffer) ContentsForRendering(startLine, contentHeight, contentWidth int) iter.Seq[*RenderableLine] {
 	// the latest line is the possible last line accoring to contentHeight, but not guaranteed to be
 	// displayed because some lines might wrap. Clamp it to the last content line if necessary.
@@ -222,20 +258,36 @@ func (b *Buffer) ContentsForRendering(startLine, contentHeight, contentWidth int
 
 	return func(yield func(*RenderableLine) bool) {
 		for i := startLine; i < latestLine; i++ {
-			renderableLine := &RenderableLine{RenderedRows: 1}
+			// renderableLine := &RenderableLine{
+			// 	RenderedRows: 1,
+			// 	LineContents: make([][]rune, 1),
+			// 	LineSegments: make([]LineSegment, 1),
+			// }
 
-			// if the line length is greater than the width then wrap
-			if b.contents[i].length > uint(contentWidth) {
-				wrappedLine := make([]string, 0, 2)
-				for chunk := range slices.Chunk(b.contents[i].runes, contentWidth) {
-					wrappedLine = append(wrappedLine, string(chunk))
-					renderableLine.RenderedRows += 1
-				}
+			// for _, selection := range b.selections {
+			// 	// add selection head decorators
+			// 	if int(selection.HeadY) == i {
+			// 		renderableLine.Decorators = append(renderableLine.Decorators, Decorator{
+			// 			Begin: int(selection.HeadX),
+			// 			End:   int(selection.HeadX),
+			// 			Type:  DecoratorTypeSelectionHead,
+			// 		})
+			// 	}
 
-				renderableLine.LineContents = strings.Join(wrappedLine, "\n")
-			} else {
-				renderableLine.LineContents = string(b.contents[i].runes)
-			}
+			// 	// add selection tail decorators
+			// 	// if tailOffset := selection.TailOffsetsForLine(i) {
+			// 	// }
+			// }
+
+			// // if the line length is greater than the width then wrap
+			// if b.contents[i].length > uint(contentWidth) {
+			// 	for chunk := range slices.Chunk(b.contents[i].runes, contentWidth) {
+			// 		renderableLine.RenderedRows += 1
+			// 		renderableLine.LineContents = append(renderableLine.LineContents, chunk)
+			// 	}
+			// } else {
+			// 	renderableLine.LineContents[0] = b.contents[i].runes
+			// }
 
 			if !yield(renderableLine) {
 				return
@@ -243,6 +295,7 @@ func (b *Buffer) ContentsForRendering(startLine, contentHeight, contentWidth int
 		}
 	}
 }
+*/
 
 // LoadFile loads a file into the buffer
 func (b *Buffer) LoadFile(filePath string) error {

@@ -8,7 +8,7 @@ import (
 // keypress should be applied to.
 type MsgModeKeyPress struct {
 	Mode     InputMode
-	PressMsg tea.Msg
+	PressMsg tea.KeyPressMsg
 }
 
 // MsgModeChanged is fired whenever we change modes.

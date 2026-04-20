@@ -39,6 +39,7 @@ func (m *rootModel) View() tea.View {
 func (m *rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// log out the messages
 	log.Println(spew.Sdump(msg))
+	log.Println("-----------")
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
