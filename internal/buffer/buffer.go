@@ -144,7 +144,7 @@ func (b *Buffer) shiftSelection(selection *Selection, direction SelectionDirecti
 			// if previous line is shorter than current move to end of previous line
 			lineLength := b.contents[selection.HeadY].length
 			prevLineLength := b.contents[selection.HeadY-1].length
-			if prevLineLength < lineLength {
+			if prevLineLength < lineLength && selection.HeadX > prevLineLength {
 				selection.HeadX = prevLineLength
 				selection.AnchorX = prevLineLength
 			}
@@ -207,18 +207,19 @@ func (b *Buffer) shiftSelection(selection *Selection, direction SelectionDirecti
 // ContentsForRendering returns a portion of the buffer suitable for rendering. This startLine is
 // the first line to render and the maxLine is the last possible line to render. Possible because
 // the viewport might be able to render 25 lines, but the buffer only has 5. So just the 5 are returned.
-func (b *Buffer) ContentsForRendering(startLine, maxLine int) []string {
+func (b *Buffer) ContentsForRendering(startLine, maxLine int) [][]rune {
 	lineCount := len(b.contents)
 	latestLine := min(maxLine, lineCount)
 
-	lineContents := make([]string, latestLine-startLine)
+	lineContents := make([][]rune, latestLine-startLine)
 	for i := startLine; i < latestLine; i++ {
-		lineContents[i-startLine] = string(b.contents[i].runes)
+		lineContents[i-startLine] = slices.Clone(b.contents[i].runes)
 	}
 
 	return lineContents
 }
 
+// Selections returns all selections active in the buffer
 func (b *Buffer) Selections() []*Selection {
 	return b.selections
 }

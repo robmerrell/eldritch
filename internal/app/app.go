@@ -92,6 +92,8 @@ func (m *rootModel) handleInsertModeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 		return m, m.enterMode(state.InputModeInsert)
 	}
 
+	// TODO: any unhandled control keys just return early
+
 	// anything else send to the active buffer view
 	// wrap the event in the current state before sending it
 	_, rootCmd := m.rootView.Update(state.MsgModeKeyPress{Mode: m.currentInputMode, PressMsg: msg})

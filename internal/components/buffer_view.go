@@ -1,13 +1,10 @@
 package components
 
 import (
-	"log"
-	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/muesli/reflow/wrap"
 	"github.com/robmerrell/eldritch/internal/buffer"
 	"github.com/robmerrell/eldritch/internal/state"
@@ -35,6 +32,8 @@ func (b *BufferView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case state.MsgModeKeyPress:
 		if msg.Mode == state.InputModeNormal {
 			switch msg.PressMsg.String() {
+			case "d":
+				// b.buffer.Delete()
 			case "h":
 				b.buffer.ShiftSelections(buffer.SelectionDirectionLeft, 1)
 			case "j":
@@ -44,6 +43,8 @@ func (b *BufferView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "l":
 				b.buffer.ShiftSelections(buffer.SelectionDirectionRight, 1)
 			}
+		} else if msg.Mode == state.InputModeInsert {
+			b.buffer.Insert([]rune(msg.PressMsg.String())[0])
 		}
 	}
 
@@ -79,36 +80,32 @@ func (b *BufferView) View() tea.View {
 		Foreground(b.theme.ModelineInputModeBg).
 		Background(b.theme.ModelineInputModeFg).Render
 	startLine := 0
-	// lineNum := startLine
 
 	var contents strings.Builder
 	var lineNums strings.Builder
 	renderableContents := b.buffer.ContentsForRendering(startLine, startLine+contentHeight)
 
+	// add a space on empty lines to make rendering a cursor easier and line ends
 	for i := range renderableContents {
 		if len(renderableContents[i]) == 0 {
-			renderableContents[i] = " "
+			renderableContents[i] = []rune(" ")
 		}
+
+		renderableContents[i] = append(renderableContents[i], []rune(" ")...)
 	}
 
-	// render selections into the contents. Replace this.
+	// render selections into the contents. This is dumb, but keeps be moving forward until I
+	// want to optimize it.
 	for _, selection := range b.buffer.Selections() {
-		log.Println("=========")
-		v := renderableContents[selection.HeadY]
-		log.Println(spew.Sdump(v))
-		log.Printf("x:%d, y:%d, len %d", selection.HeadX, selection.HeadY, len(v))
-		log.Println("=========")
-		if int(selection.HeadX) < len(v) {
-			line := []rune(renderableContents[selection.HeadY])
-			value := []rune(selectionHeadInlineStyle(string(line[selection.HeadX])))
-			merged := slices.Replace(line, int(selection.HeadX), 1, value...)
-			renderableContents[selection.HeadY] = string(merged)
-		}
+		line := renderableContents[selection.HeadY]
+		headRune := []rune(selectionHeadInlineStyle(string(line[selection.HeadX])))
+		merged := append(line[:selection.HeadX], append(headRune, line[selection.HeadX+1:]...)...)
+		renderableContents[selection.HeadY] = merged
 	}
 
 	for _, line := range renderableContents {
 		lineWriter := wrap.NewWriter(contentWidth)
-		lineWriter.Write([]byte(line))
+		lineWriter.Write([]byte(string(line)))
 
 		contents.WriteString(lineWriter.String() + "\n")
 	}
