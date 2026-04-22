@@ -33,7 +33,6 @@ func TestAddSelection(t *testing.T) {
 }
 
 func TestShiftSelectionsForward(t *testing.T) {
-	// moves forward
 	buffer := NewBuffer()
 	buffer.SetContents("hello")
 	buffer.AddSelection(1) // at the e
@@ -54,8 +53,28 @@ func TestShiftSelectionsForward(t *testing.T) {
 	assert.Equal(t, 5, buffer.selections[2].Head)
 
 	// we're at the end of the document, so don't move
-	assert.Equal(t, 4, buffer.selections[3].Anchor)
+	assert.Equal(t, 5, buffer.selections[3].Anchor)
 	assert.Equal(t, 5, buffer.selections[3].Head)
+}
+
+func testShiftSelectionForwardMultiLine(t *testing.T) {
+	buffer := NewBuffer()
+	buffer.SetContents("hello\nsecond")
+
+	// end of first line \n
+	buffer.selections[0].Anchor = 5
+	buffer.selections[0].Head = 5
+
+	// end of the document
+	buffer.AddSelection(12)
+
+	buffer.ShiftSelectionsForward(3, true)
+
+	assert.Equal(t, 8, buffer.selections[0].Anchor)
+	assert.Equal(t, 8, buffer.selections[0].Head)
+
+	assert.Equal(t, 12, buffer.selections[1].Anchor)
+	assert.Equal(t, 12, buffer.selections[1].Head)
 }
 
 /*

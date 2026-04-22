@@ -146,7 +146,7 @@ func (b *Buffer) AddSelection(offset int) {
 // also move the anchor.
 func (b *Buffer) ShiftSelectionsForward(count int, collapse bool) {
 	for _, selection := range b.selections {
-		if selection.Head <= b.endOfDocumentOffset() {
+		if selection.Head+count < b.endOfDocumentOffset() {
 			selection.Head += count
 
 			if collapse {
