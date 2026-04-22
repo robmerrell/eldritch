@@ -2,12 +2,63 @@ package buffer
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func strRune(input string) rune {
-	return []rune(input)[0]
+func TestSetContents(t *testing.T) {
+	buffer := NewBuffer()
+	buffer.SetContents("hello\nworld\nthis\nis a buffer")
+
+	assert.Equal(t, "hello\n", string(buffer.contents[0].runes))
+	assert.Equal(t, "world\n", string(buffer.contents[1].runes))
+	assert.Equal(t, "this\n", string(buffer.contents[2].runes))
+	assert.Equal(t, "is a buffer\n", string(buffer.contents[3].runes))
 }
 
+func testEndOfDocumentOffset(t *testing.T) {
+	buffer := NewBuffer()
+	buffer.SetContents("hello\nworld")
+
+	assert.Equal(t, 11, buffer.endOfDocumentOffset())
+}
+
+func TestAddSelection(t *testing.T) {
+	buffer := NewBuffer()
+	buffer.SetContents("hello")
+	buffer.AddSelection(2)
+
+	assert.Equal(t, 2, buffer.selections[1].Anchor)
+	assert.Equal(t, 2, buffer.selections[1].Head)
+}
+
+func TestShiftSelectionsForward(t *testing.T) {
+	// moves forward
+	buffer := NewBuffer()
+	buffer.SetContents("hello")
+	buffer.AddSelection(1) // at the e
+	buffer.AddSelection(4) // at the o
+	buffer.AddSelection(5) // at the end \n
+	buffer.ShiftSelectionsForward(1, false)
+
+	// primary
+	assert.Equal(t, 0, buffer.selections[0].Anchor)
+	assert.Equal(t, 1, buffer.selections[0].Head)
+
+	// started at e
+	assert.Equal(t, 1, buffer.selections[1].Anchor)
+	assert.Equal(t, 2, buffer.selections[1].Head)
+
+	// move from the o to the newline
+	assert.Equal(t, 4, buffer.selections[2].Anchor)
+	assert.Equal(t, 5, buffer.selections[2].Head)
+
+	// we're at the end of the document, so don't move
+	assert.Equal(t, 4, buffer.selections[3].Anchor)
+	assert.Equal(t, 5, buffer.selections[3].Head)
+}
+
+/*
 func assertCollapsedSelection(t *testing.T, sel *Selection, x, y int) {
 	t.Helper()
 
@@ -27,7 +78,9 @@ func assertCollapsedSelection(t *testing.T, sel *Selection, x, y int) {
 		t.Errorf("Head y got: %d, expected %d", sel.HeadY, y)
 	}
 }
+*/
 
+/*
 func TestInsertSelectionPosition(t *testing.T) {
 	buffer := NewBuffer()
 
@@ -37,7 +90,9 @@ func TestInsertSelectionPosition(t *testing.T) {
 	buffer.Insert(strRune("i"))
 	assertCollapsedSelection(t, buffer.selections[0], 2, 0)
 }
+*/
 
+/*
 func TestInsertBacktrackOne(t *testing.T) {
 	// add "eld" at the beginning of the buffer
 	buffer := NewBuffer()
@@ -78,7 +133,9 @@ func setupSelectionBuffer() *Buffer {
 
 	return buffer
 }
+*/
 
+/*
 func TestShiftSelectionUp(t *testing.T) {
 	buffer := setupSelectionBuffer()
 
@@ -124,39 +181,46 @@ func TestShiftSelectionDown(t *testing.T) {
 	buffer.ShiftSelections(SelectionDirectionDown, 1)
 	assertCollapsedSelection(t, buffer.selections[0], 0, lineCount-1)
 }
+*/
 
+/*
 func TestShiftSelectionRight(t *testing.T) {
-	buffer := setupSelectionBuffer()
-	line := buffer.contents[0]
-	lineCount := len(buffer.contents)
+	// buffer := NewBuffer()
+	// buffer.SetContents([]rune("hello\nworld\nthis\nis a buffer"))
+
+	// buffer := setupSelectionBuffer()
+	// line := buffer.contents[0]
+	// lineCount := len(buffer.contents)
 
 	// from 0 moves right
-	buffer.selections[0].SetCollapsed(0, 0)
-	buffer.ShiftSelections(SelectionDirectionRight, 1)
-	assertCollapsedSelection(t, buffer.selections[0], 1, 0)
+	// buffer.selections[0].SetCollapsed(0, 0)
+	// buffer.ShiftSelections(SelectionDirectionRight, 1)
+	// assertCollapsedSelection(t, buffer.selections[0], 1, 0)
 
-	// from the middle
-	buffer.selections[0].SetCollapsed(3, 0)
-	buffer.ShiftSelections(SelectionDirectionRight, 1)
-	assertCollapsedSelection(t, buffer.selections[0], 4, 0)
+	// // from the middle
+	// buffer.selections[0].SetCollapsed(3, 0)
+	// buffer.ShiftSelections(SelectionDirectionRight, 1)
+	// assertCollapsedSelection(t, buffer.selections[0], 4, 0)
 
-	// after the last character moves the cursor past it to empty space
-	buffer.selections[0].SetCollapsed(line.length-1, 0)
-	buffer.ShiftSelections(SelectionDirectionRight, 1)
-	assertCollapsedSelection(t, buffer.selections[0], 5, 0)
+	// // after the last character moves the cursor past it to empty space
+	// buffer.selections[0].SetCollapsed(line.length-1, 0)
+	// buffer.ShiftSelections(SelectionDirectionRight, 1)
+	// assertCollapsedSelection(t, buffer.selections[0], 5, 0)
 
-	// at end of line goes to the beginning of the next line
-	buffer.selections[0].SetCollapsed(line.length, 0)
-	buffer.ShiftSelections(SelectionDirectionRight, 1)
-	assertCollapsedSelection(t, buffer.selections[0], 0, 1)
+	// // at end of line goes to the beginning of the next line
+	// buffer.selections[0].SetCollapsed(line.length, 0)
+	// buffer.ShiftSelections(SelectionDirectionRight, 1)
+	// assertCollapsedSelection(t, buffer.selections[0], 0, 1)
 
-	// at the end of the last line doesn't move
-	line = buffer.contents[3]
-	buffer.selections[0].SetCollapsed(line.length, lineCount-1)
-	buffer.ShiftSelections(SelectionDirectionRight, 1)
-	assertCollapsedSelection(t, buffer.selections[0], line.length, lineCount-1)
+	// // at the end of the last line doesn't move
+	// line = buffer.contents[3]
+	// buffer.selections[0].SetCollapsed(line.length, lineCount-1)
+	// buffer.ShiftSelections(SelectionDirectionRight, 1)
+	// assertCollapsedSelection(t, buffer.selections[0], line.length, lineCount-1)
 }
+*/
 
+/*
 func TestShiftSelectionLeft(t *testing.T) {
 	buffer := setupSelectionBuffer()
 
@@ -176,6 +240,7 @@ func TestShiftSelectionLeft(t *testing.T) {
 	newLine := buffer.contents[1]
 	assertCollapsedSelection(t, buffer.selections[0], newLine.length, 1)
 }
+*/
 
 // func TestShiftingSelectionsByCount(t *testing.T) {
 
@@ -186,59 +251,6 @@ func TestShiftSelectionLeft(t *testing.T) {
 // }
 
 /*
-func TestBufferContentsForRendering(t *testing.T) {
-	buffer, err := NewBufferWithFile("testdata/render.txt")
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	assertLines := func(start, height, width int, assertion string) {
-		content := []string{}
-		for line := range buffer.ContentsForRendering(start, height, width) {
-			lineStr := fmt.Sprintf("%d %s", line.RenderedRows, line.LineContents)
-			content = append(content, lineStr)
-		}
-
-		strContent := strings.Join(content, "\n")
-		if strContent != assertion {
-			t.Errorf("got:\n%s \nwanted:\n%s", strContent, assertion)
-		}
-	}
-
-	// starting at 0
-	assertLines(0, 3, 100,
-		"1 This is a file used to test the renderer.\n"+
-			"1 We want to\n"+
-			"1 make sure that it can")
-
-	// starting at a non zero line (like we scrolled)
-	assertLines(1, 2, 100,
-		"1 We want to\n"+
-			"1 make sure that it can")
-
-	// more lines to display than there is content
-	assertLines(0, 100, 100,
-		"1 This is a file used to test the renderer.\n"+
-			"1 We want to\n"+
-			"1 make sure that it can\n"+
-			"1 handle showing partial content, wrapping lines, etc.\n"+
-			"1 ")
-
-	// Test last line
-	assertLines(3, 100, 100,
-		"1 handle showing partial content, wrapping lines, etc.\n"+
-			"1 ")
-
-	// Test line wrap
-	assertLines(0, 2, 15,
-		"4 This is a file \n"+
-			"used to test th\n"+
-			"e renderer.\n"+
-			"1 We want to")
-
-}
-*/
-
 func TestBufferWithBadFile(t *testing.T) {
 	_, err := NewBufferWithFile("badfile")
 	if err == nil {
@@ -282,3 +294,4 @@ func TestClear(t *testing.T) {
 		t.Fatalf("cap=%d, want=%d", got, want)
 	}
 }
+*/

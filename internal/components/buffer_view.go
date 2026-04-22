@@ -76,32 +76,28 @@ func (b *BufferView) View() tea.View {
 		Width(contentWidth).
 		Height(contentHeight)
 
-	selectionHeadInlineStyle := lipgloss.NewStyle().
-		Foreground(b.theme.ModelineInputModeBg).
-		Background(b.theme.ModelineInputModeFg).Render
+	// selectionHeadInlineStyle := lipgloss.NewStyle().
+	// 	Foreground(b.theme.ModelineInputModeBg).
+	// 	Background(b.theme.ModelineInputModeFg).Render
 	startLine := 0
 
 	var contents strings.Builder
 	var lineNums strings.Builder
 	renderableContents := b.buffer.ContentsForRendering(startLine, startLine+contentHeight)
 
-	// add a space on empty lines to make rendering a cursor easier and line ends
+	// add a space on empty lines to make rendering a cursor easier and line ends for now.
 	for i := range renderableContents {
-		if len(renderableContents[i]) == 0 {
-			renderableContents[i] = []rune(" ")
-		}
-
 		renderableContents[i] = append(renderableContents[i], []rune(" ")...)
 	}
 
-	// render selections into the contents. This is dumb, but keeps be moving forward until I
+	// render selections into the contents. This is dumb, but keeps me moving forward until I
 	// want to optimize it.
-	for _, selection := range b.buffer.Selections() {
-		line := renderableContents[selection.HeadY]
-		headRune := []rune(selectionHeadInlineStyle(string(line[selection.HeadX])))
-		merged := append(line[:selection.HeadX], append(headRune, line[selection.HeadX+1:]...)...)
-		renderableContents[selection.HeadY] = merged
-	}
+	// for _, selection := range b.buffer.Selections() {
+	// 	line := renderableContents[selection.HeadY]
+	// 	headRune := []rune(selectionHeadInlineStyle(string(line[selection.HeadX])))
+	// 	merged := append(line[:selection.HeadX], append(headRune, line[selection.HeadX+1:]...)...)
+	// 	renderableContents[selection.HeadY] = merged
+	// }
 
 	for _, line := range renderableContents {
 		lineWriter := wrap.NewWriter(contentWidth)

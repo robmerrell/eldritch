@@ -27,6 +27,7 @@ import (
 	"errors"
 	"os"
 	"slices"
+	"strings"
 )
 
 // errors
@@ -36,7 +37,7 @@ var ErrNotFileBackedBuffer = errors.New("Not a file backed buffer")
 const DefaultLineCap = 256
 const DefaultRuneCap = 256
 
-// line holds line contents and the length
+// line holds line contents and the length. All lines end with a newline.
 type line struct {
 	runes  []rune
 	length int
@@ -85,7 +86,7 @@ func NewBufferWithFile(filePath string) (*Buffer, error) {
 // Clear clears the buffer input by reallocating the content container.
 func (b *Buffer) Clear() {
 	b.contents = make([]line, 1, DefaultLineCap)
-	b.contents[0].runes = make([]rune, 0, DefaultRuneCap)
+	b.contents[0] = newLine([]rune(""))
 }
 
 // AssignName gives the buffer a name
@@ -95,113 +96,148 @@ func (b *Buffer) AssignName(name string) {
 
 // Insert inserts a rune at all selection positions. Characters are inserted before the selection.
 func (b *Buffer) Insert(input rune) {
-	for _, selection := range b.selections {
-		// get the beginning of the selection regardless of anchor coords
-		x, y := selection.Beginning()
-		line := &b.contents[y]
+	/*
+		for _, selection := range b.selections {
+			// get the beginning of the selection regardless of anchor coords
+			x, y := selection.Beginning()
+			line := &b.contents[y]
 
-		if line.length == x {
-			// at the end of the line, so append
-			line.runes = append(line.runes, input)
-		} else if line.length > x {
-			// Something already exists there, so insert it
-			line.runes = slices.Insert(line.runes, int(x), input)
+			if line.length == x {
+				// at the end of the line, so append
+				line.runes = append(line.runes, input)
+			} else if line.length > x {
+				// Something already exists there, so insert it
+				line.runes = slices.Insert(line.runes, int(x), input)
+			}
+
+			line.length = line.length + 1
+			b.shiftSelection(selection, SelectionDirectionRight, 1)
 		}
-
-		line.length = line.length + 1
-		b.shiftSelection(selection, SelectionDirectionRight, 1)
-	}
+	*/
 }
 
 // SetContents replaces current contents with the given input.
-func (b *Buffer) SetContents(contents []rune) {
-	b.Clear()
+func (b *Buffer) SetContents(contents string) {
+	split := strings.SplitAfter(contents, "\n")
+	b.contents = make([]line, len(split))
 
-	for _, rn := range contents {
-		if rn == '\n' {
-			newLine := line{runes: make([]rune, 0, DefaultRuneCap)}
-			b.contents = append(b.contents, newLine)
-			b.ShiftSelections(SelectionDirectionDown, 1)
-		} else {
-			b.Insert(rn)
+	for i, strLine := range split {
+		b.contents[i] = newLine([]rune(strLine))
+	}
+}
+
+// endOfDocumentOffset calculates the offset that represents the end of the document
+func (b *Buffer) endOfDocumentOffset() int {
+	offset := 0
+
+	for _, line := range b.contents {
+		offset += line.length
+	}
+
+	return offset
+}
+
+// AddSelection adds a selection to the buffer at the given offset for both head and anchor.
+func (b *Buffer) AddSelection(offset int) {
+	b.selections = append(b.selections, NewSelection(offset, offset))
+}
+
+// ShiftSelectionsForward shifts the selections "count" spaces forward. If collapsed is true then
+// also move the anchor.
+func (b *Buffer) ShiftSelectionsForward(count int, collapse bool) {
+	for _, selection := range b.selections {
+		if selection.Head <= b.endOfDocumentOffset() {
+			selection.Head += count
+
+			if collapse {
+				selection.Anchor = selection.Head
+			}
 		}
 	}
 }
 
 // ShiftSelections shifts all selections in a direction
 func (b *Buffer) ShiftSelections(direction SelectionDirection, count int) {
-	for _, selection := range b.selections {
-		b.shiftSelection(selection, direction, count)
-	}
+	// for _, selection := range b.selections {
+	// 	b.shiftSelection(selection, direction, count)
+	// }
 }
+
+// func (b *Buffer) shiftSelectionHead(selection *Selection, offset int) {
+// 	selection.Head = offset
+// }
+
+// func (b *Buffer) shiftSelectionHeadAndAnchor()
 
 // shiftSelection shifts a specified selection in a direction
 func (b *Buffer) shiftSelection(selection *Selection, direction SelectionDirection, count int) {
-	switch direction {
-	case SelectionDirectionUp:
-		// if on the first line don't move
-		if selection.HeadY > 0 {
-			// if previous line is shorter than current move to end of previous line
-			lineLength := b.contents[selection.HeadY].length
-			prevLineLength := b.contents[selection.HeadY-1].length
-			if prevLineLength < lineLength && selection.HeadX > prevLineLength {
-				selection.HeadX = prevLineLength
-				selection.AnchorX = prevLineLength
-			}
-
-			selection.AnchorY = selection.AnchorY - count
-			selection.HeadY = selection.HeadY - count
-		}
-
-	case SelectionDirectionRight:
-		line := b.contents[selection.HeadY]
-
-		// selection at the end of the line
-		if selection.HeadX > line.length-1 {
-			// if not the last line wrap around to the next
-			if selection.HeadY < len(b.contents)-1 {
-				selection.SetCollapsed(0, selection.HeadY+1)
-			}
-
-			// if last line don't move
-			return
-		}
-
-		selection.AnchorX = selection.AnchorX + count
-		selection.HeadX = selection.HeadX + count
-
-	case SelectionDirectionDown:
-		// if on the last line don't move
-		if selection.HeadY < len(b.contents)-1 {
-			// if next line is shorter than current move to end of next line if cursor is
-			// past the position of the next line's end.
-			lineLength := b.contents[selection.HeadY].length
-			nextLineLength := b.contents[selection.HeadY+1].length
-			if nextLineLength < lineLength && selection.HeadX > nextLineLength {
-				selection.HeadX = nextLineLength
-				selection.AnchorX = nextLineLength
-			}
-
-			selection.AnchorY = selection.AnchorY + count
-			selection.HeadY = selection.HeadY + count
-		}
-
-	case SelectionDirectionLeft:
-		// selection at the beginning of the line
-		if selection.HeadX == 0 {
-			// if not the first line wrap around to the next
+	/*
+		switch direction {
+		case SelectionDirectionUp:
+			// if on the first line don't move
 			if selection.HeadY > 0 {
-				prevLine := b.contents[selection.HeadY-1]
-				selection.SetCollapsed(prevLine.length, selection.HeadY-1)
+				// if previous line is shorter than current move to end of previous line
+				lineLength := b.contents[selection.HeadY].length
+				prevLineLength := b.contents[selection.HeadY-1].length
+				if prevLineLength < lineLength && selection.HeadX > prevLineLength {
+					selection.HeadX = prevLineLength
+					selection.AnchorX = prevLineLength
+				}
+
+				selection.AnchorY = selection.AnchorY - count
+				selection.HeadY = selection.HeadY - count
 			}
 
-			// if first line don't move
-			return
-		}
+		case SelectionDirectionRight:
+			line := b.contents[selection.HeadY]
 
-		selection.AnchorX = selection.AnchorX - count
-		selection.HeadX = selection.HeadX - count
-	}
+			// selection at the end of the line
+			if selection.HeadX > line.length-1 {
+				// if not the last line wrap around to the next
+				if selection.HeadY < len(b.contents)-1 {
+					selection.SetCollapsed(0, selection.HeadY+1)
+				}
+
+				// if last line don't move
+				return
+			}
+
+			selection.AnchorX = selection.AnchorX + count
+			selection.HeadX = selection.HeadX + count
+
+		case SelectionDirectionDown:
+			// if on the last line don't move
+			if selection.HeadY < len(b.contents)-1 {
+				// if next line is shorter than current move to end of next line if cursor is
+				// past the position of the next line's end.
+				lineLength := b.contents[selection.HeadY].length
+				nextLineLength := b.contents[selection.HeadY+1].length
+				if nextLineLength < lineLength && selection.HeadX > nextLineLength {
+					selection.HeadX = nextLineLength
+					selection.AnchorX = nextLineLength
+				}
+
+				selection.AnchorY = selection.AnchorY + count
+				selection.HeadY = selection.HeadY + count
+			}
+
+		case SelectionDirectionLeft:
+			// selection at the beginning of the line
+			if selection.HeadX == 0 {
+				// if not the first line wrap around to the next
+				if selection.HeadY > 0 {
+					prevLine := b.contents[selection.HeadY-1]
+					selection.SetCollapsed(prevLine.length, selection.HeadY-1)
+				}
+
+				// if first line don't move
+				return
+			}
+
+			selection.AnchorX = selection.AnchorX - count
+			selection.HeadX = selection.HeadX - count
+		}
+	*/
 }
 
 // ContentsForRendering returns a portion of the buffer suitable for rendering. This startLine is
@@ -243,4 +279,13 @@ func (b *Buffer) LoadFile(filePath string) error {
 	}
 
 	return nil
+}
+
+func newLine(lineRunes []rune) line {
+	// make sure it ends with a newline
+	if len(lineRunes) == 0 || lineRunes[len(lineRunes)-1] != '\n' {
+		lineRunes = append(lineRunes, []rune("\n")...)
+	}
+
+	return line{runes: lineRunes, length: len(lineRunes)}
 }
