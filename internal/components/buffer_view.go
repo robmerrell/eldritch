@@ -32,16 +32,18 @@ func (b *BufferView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case state.MsgModeKeyPress:
 		if msg.Mode == state.InputModeNormal {
 			switch msg.PressMsg.String() {
-			case "d":
-				// b.buffer.Delete()
 			case "h":
-				b.buffer.ShiftSelections(buffer.SelectionDirectionLeft, 1)
+				b.buffer.ShiftSelectionsForward(-1, true)
+			case "H":
+				b.buffer.ShiftSelectionsForward(-1, false)
 			case "j":
-				b.buffer.ShiftSelections(buffer.SelectionDirectionDown, 1)
+				b.buffer.ShiftSelections(buffer.SelectionDirectionLeft, 1)
 			case "k":
 				b.buffer.ShiftSelections(buffer.SelectionDirectionUp, 1)
 			case "l":
-				b.buffer.ShiftSelections(buffer.SelectionDirectionRight, 1)
+				b.buffer.ShiftSelectionsForward(1, true)
+			case "L":
+				b.buffer.ShiftSelectionsForward(1, false)
 			}
 		} else if msg.Mode == state.InputModeInsert {
 			b.buffer.Insert([]rune(msg.PressMsg.String())[0])
@@ -65,43 +67,52 @@ func (b *BufferView) View() tea.View {
 	contentWidth := b.width - lineNumWidth
 
 	lineNumStyle := lipgloss.NewStyle().
-		Foreground(b.theme.Fg).
-		Background(b.theme.Bg).
+		Foreground(b.theme.ModelineFg).
+		Background(b.theme.ModelineBg).
 		Width(lineNumWidth).
 		Height(contentHeight)
 
 	contentStyle := lipgloss.NewStyle().
-		Foreground(b.theme.ModelineInputModeFg).
-		Background(b.theme.ModelineInputModeBg).
+		Foreground(b.theme.Fg).
+		Background(b.theme.Bg).
 		Width(contentWidth).
 		Height(contentHeight)
 
-	// selectionHeadInlineStyle := lipgloss.NewStyle().
-	// 	Foreground(b.theme.ModelineInputModeBg).
-	// 	Background(b.theme.ModelineInputModeFg).Render
 	startLine := 0
 
 	var contents strings.Builder
 	var lineNums strings.Builder
 	renderableContents := b.buffer.ContentsForRendering(startLine, startLine+contentHeight)
 
-	// add a space on empty lines to make rendering a cursor easier and line ends for now.
-	for i := range renderableContents {
-		renderableContents[i] = append(renderableContents[i], []rune(" ")...)
-	}
+	defaultStyle := lipgloss.NewStyle().
+		Foreground(b.theme.Fg).
+		Background(b.theme.Bg).Render
 
-	// render selections into the contents. This is dumb, but keeps me moving forward until I
-	// want to optimize it.
-	// for _, selection := range b.buffer.Selections() {
-	// 	line := renderableContents[selection.HeadY]
-	// 	headRune := []rune(selectionHeadInlineStyle(string(line[selection.HeadX])))
-	// 	merged := append(line[:selection.HeadX], append(headRune, line[selection.HeadX+1:]...)...)
-	// 	renderableContents[selection.HeadY] = merged
-	// }
+	selectionHeadStyle := lipgloss.NewStyle().
+		Foreground(b.theme.SelectionHeadFg).
+		Background(b.theme.SelectionHeadBg).Render
 
-	for _, line := range renderableContents {
+	selectionTailStyle := lipgloss.NewStyle().
+		Background(b.theme.SelectionTailBg).Render
+
+	for i, line := range renderableContents {
+		var strLine string
+
+		for j, rn := range line {
+			switch b.buffer.OffsetAttribute(i, j) {
+			case "selection_tail":
+				strLine += selectionTailStyle(string(rn))
+
+			case "selection_head":
+				strLine += selectionHeadStyle(string(rn))
+
+			default:
+				strLine += defaultStyle(string(rn))
+			}
+		}
+
 		lineWriter := wrap.NewWriter(contentWidth)
-		lineWriter.Write([]byte(string(line)))
+		lineWriter.Write([]byte(strLine))
 
 		contents.WriteString(lineWriter.String() + "\n")
 	}

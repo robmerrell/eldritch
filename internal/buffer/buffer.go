@@ -142,6 +142,25 @@ func (b *Buffer) AddSelection(offset int) {
 	b.selections = append(b.selections, NewSelection(offset, offset))
 }
 
+// OffsetAttribute returns a single attribute for the given rune offset. I suspect this will go
+// away once I need to render diagnostics.
+func (b *Buffer) OffsetAttribute(lineIndex, offset int) string {
+	contentOffset := offset
+	for i := range lineIndex {
+		contentOffset += b.contents[i].length
+	}
+
+	for _, selection := range b.selections {
+		if contentOffset >= selection.Anchor && contentOffset <= selection.Head-1 {
+			return "selection_tail"
+		} else if contentOffset == selection.Head {
+			return "selection_head"
+		}
+	}
+
+	return "none"
+}
+
 // ShiftSelectionsForward shifts the selections "count" spaces forward. If collapsed is true then
 // also move the anchor.
 func (b *Buffer) ShiftSelectionsForward(count int, collapse bool) {
@@ -162,12 +181,6 @@ func (b *Buffer) ShiftSelections(direction SelectionDirection, count int) {
 	// 	b.shiftSelection(selection, direction, count)
 	// }
 }
-
-// func (b *Buffer) shiftSelectionHead(selection *Selection, offset int) {
-// 	selection.Head = offset
-// }
-
-// func (b *Buffer) shiftSelectionHeadAndAnchor()
 
 // shiftSelection shifts a specified selection in a direction
 func (b *Buffer) shiftSelection(selection *Selection, direction SelectionDirection, count int) {
@@ -249,7 +262,16 @@ func (b *Buffer) ContentsForRendering(startLine, maxLine int) [][]rune {
 
 	lineContents := make([][]rune, latestLine-startLine)
 	for i := startLine; i < latestLine; i++ {
-		lineContents[i-startLine] = slices.Clone(b.contents[i].runes)
+		rns := slices.Clone(b.contents[i].runes)
+
+		// replace newline with spaces for rendering
+		for i := range rns {
+			if rns[i] == '\n' {
+				rns[i] = ' '
+			}
+		}
+
+		lineContents[i-startLine] = rns
 	}
 
 	return lineContents
@@ -281,6 +303,7 @@ func (b *Buffer) LoadFile(filePath string) error {
 	return nil
 }
 
+// newLine creates an empty newline with the required line ending
 func newLine(lineRunes []rune) line {
 	// make sure it ends with a newline
 	if len(lineRunes) == 0 || lineRunes[len(lineRunes)-1] != '\n' {
