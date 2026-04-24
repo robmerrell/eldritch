@@ -165,12 +165,25 @@ func (b *Buffer) OffsetAttribute(lineIndex, offset int) string {
 // also move the anchor.
 func (b *Buffer) ShiftSelectionsForward(count int, collapse bool) {
 	for _, selection := range b.selections {
+		// TODO: should be min instead
 		if selection.Head+count < b.endOfDocumentOffset() {
 			selection.Head += count
 
 			if collapse {
 				selection.Anchor = selection.Head
 			}
+		}
+	}
+}
+
+// ShiftSelectionsBackward shifts the selections "count" spaces backward. If collapsed is true then
+// also move the anchor.
+func (b *Buffer) ShiftSelectionsBackward(count int, collapse bool) {
+	for _, selection := range b.selections {
+		selection.Head = max(selection.Head-count, 0)
+
+		if collapse {
+			selection.Anchor = selection.Head
 		}
 	}
 }
