@@ -114,7 +114,7 @@ func (b *BufferView) View() tea.View {
 		lineWriter := wrap.NewWriter(contentWidth)
 		lineWriter.Write([]byte(strLine))
 
-		contents.WriteString(lineWriter.String() + "\n")
+		contents.WriteString(lineWriter.String())
 	}
 
 	layout := lipgloss.JoinVertical(

@@ -165,13 +165,10 @@ func (b *Buffer) OffsetAttribute(lineIndex, offset int) string {
 // also move the anchor.
 func (b *Buffer) ShiftSelectionsForward(count int, collapse bool) {
 	for _, selection := range b.selections {
-		// TODO: should be min instead
-		if selection.Head+count < b.endOfDocumentOffset() {
-			selection.Head += count
+		selection.Head = min(selection.Head+count, b.endOfDocumentOffset())
 
-			if collapse {
-				selection.Anchor = selection.Head
-			}
+		if collapse {
+			selection.Anchor = selection.Head
 		}
 	}
 }
@@ -276,14 +273,8 @@ func (b *Buffer) ContentsForRendering(startLine, maxLine int) [][]rune {
 	lineContents := make([][]rune, latestLine-startLine)
 	for i := startLine; i < latestLine; i++ {
 		rns := slices.Clone(b.contents[i].runes)
-
-		// replace newline with spaces for rendering
-		for i := range rns {
-			if rns[i] == '\n' {
-				rns[i] = ' '
-			}
-		}
-
+		// TODO: render a \n with a space. This is dumb and needs to be redone.
+		rns = append(rns[:len(rns)-1], ' ', '\n')
 		lineContents[i-startLine] = rns
 	}
 
@@ -303,14 +294,13 @@ func (b *Buffer) LoadFile(filePath string) error {
 	}
 	defer file.Close()
 
-	b.contents = make([]line, 0)
 	b.backingFile = &filePath
+	b.contents = make([]line, 0)
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		lineRunes := []rune(scanner.Text())
-		line := line{runes: lineRunes, length: len(lineRunes)}
-		b.contents = append(b.contents, line)
+		b.contents = append(b.contents, newLine(lineRunes))
 	}
 
 	return nil
