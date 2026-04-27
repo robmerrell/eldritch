@@ -137,6 +137,38 @@ func (b *Buffer) endOfDocumentOffset() int {
 	return offset
 }
 
+// OffsetToLineNum returns the (0 based) line number that the offset is found in.
+func (b *Buffer) OffsetToLineNum(offset int) int {
+	acc := 0
+
+	for i, line := range b.contents {
+		if acc+line.length > offset {
+			return i
+		}
+
+		acc += line.length
+	}
+
+	// fallback to last line
+	return len(b.contents) - 1
+}
+
+// LocalLineOffset returns the offset of the current line the selection is on. Think column of the current line.
+func (b *Buffer) LocalLineOffset(selection *Selection) int {
+	acc := 0
+
+	for _, line := range b.contents {
+		if acc+line.length > selection.Head {
+			// return i
+		}
+
+		acc += line.length
+	}
+
+	// fallback to beginning of line
+	return 0
+}
+
 // AddSelection adds a selection to the buffer at the given offset for both head and anchor.
 func (b *Buffer) AddSelection(offset int) {
 	b.selections = append(b.selections, NewSelection(offset, offset))
@@ -166,6 +198,7 @@ func (b *Buffer) OffsetAttribute(lineIndex, offset int) string {
 func (b *Buffer) ShiftSelectionsForward(count int, collapse bool) {
 	for _, selection := range b.selections {
 		selection.Head = min(selection.Head+count, b.endOfDocumentOffset())
+		selection.PreferredLineOffset = b.LocalLineOffset(selection)
 
 		if collapse {
 			selection.Anchor = selection.Head
@@ -185,82 +218,30 @@ func (b *Buffer) ShiftSelectionsBackward(count int, collapse bool) {
 	}
 }
 
-// ShiftSelections shifts all selections in a direction
-func (b *Buffer) ShiftSelections(direction SelectionDirection, count int) {
-	// for _, selection := range b.selections {
-	// 	b.shiftSelection(selection, direction, count)
-	// }
-}
+// ShiftSelectionsDown shifts the selections "count" spaces down. If collapsed is true then
+// also move the anchor.
+func (b *Buffer) ShiftSelectionsDown(count int, collapse bool) {
+	for _, selection := range b.selections {
+		// find the line number we need to jump to
+		currentLineNum := b.OffsetToLineNum(selection.Head)
+		lineNum := min(len(b.contents), currentLineNum+count)
 
-// shiftSelection shifts a specified selection in a direction
-func (b *Buffer) shiftSelection(selection *Selection, direction SelectionDirection, count int) {
-	/*
-		switch direction {
-		case SelectionDirectionUp:
-			// if on the first line don't move
-			if selection.HeadY > 0 {
-				// if previous line is shorter than current move to end of previous line
-				lineLength := b.contents[selection.HeadY].length
-				prevLineLength := b.contents[selection.HeadY-1].length
-				if prevLineLength < lineLength && selection.HeadX > prevLineLength {
-					selection.HeadX = prevLineLength
-					selection.AnchorX = prevLineLength
-				}
+		// find the offset within the line. If there is a preferred column on the selection use that
+		// otherwise use the line end.
+		lineOffset := min(selection.PreferredLineOffset, b.contents[lineNum].length)
 
-				selection.AnchorY = selection.AnchorY - count
-				selection.HeadY = selection.HeadY - count
-			}
-
-		case SelectionDirectionRight:
-			line := b.contents[selection.HeadY]
-
-			// selection at the end of the line
-			if selection.HeadX > line.length-1 {
-				// if not the last line wrap around to the next
-				if selection.HeadY < len(b.contents)-1 {
-					selection.SetCollapsed(0, selection.HeadY+1)
-				}
-
-				// if last line don't move
-				return
-			}
-
-			selection.AnchorX = selection.AnchorX + count
-			selection.HeadX = selection.HeadX + count
-
-		case SelectionDirectionDown:
-			// if on the last line don't move
-			if selection.HeadY < len(b.contents)-1 {
-				// if next line is shorter than current move to end of next line if cursor is
-				// past the position of the next line's end.
-				lineLength := b.contents[selection.HeadY].length
-				nextLineLength := b.contents[selection.HeadY+1].length
-				if nextLineLength < lineLength && selection.HeadX > nextLineLength {
-					selection.HeadX = nextLineLength
-					selection.AnchorX = nextLineLength
-				}
-
-				selection.AnchorY = selection.AnchorY + count
-				selection.HeadY = selection.HeadY + count
-			}
-
-		case SelectionDirectionLeft:
-			// selection at the beginning of the line
-			if selection.HeadX == 0 {
-				// if not the first line wrap around to the next
-				if selection.HeadY > 0 {
-					prevLine := b.contents[selection.HeadY-1]
-					selection.SetCollapsed(prevLine.length, selection.HeadY-1)
-				}
-
-				// if first line don't move
-				return
-			}
-
-			selection.AnchorX = selection.AnchorX - count
-			selection.HeadX = selection.HeadX - count
+		// find the offset in the buffer
+		bufferOffset := 0
+		for i := range lineNum {
+			bufferOffset += b.contents[i].length
 		}
-	*/
+
+		selection.Head = bufferOffset + lineOffset
+
+		if collapse {
+			selection.Anchor = selection.Head
+		}
+	}
 }
 
 // ContentsForRendering returns a portion of the buffer suitable for rendering. This startLine is
@@ -273,7 +254,7 @@ func (b *Buffer) ContentsForRendering(startLine, maxLine int) [][]rune {
 	lineContents := make([][]rune, latestLine-startLine)
 	for i := startLine; i < latestLine; i++ {
 		rns := slices.Clone(b.contents[i].runes)
-		// TODO: render a \n with a space. This is dumb and needs to be redone.
+		// render a \n with a space. TODO: This is dumb and needs to be redone.
 		rns = append(rns[:len(rns)-1], ' ', '\n')
 		lineContents[i-startLine] = rns
 	}

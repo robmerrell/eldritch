@@ -37,9 +37,11 @@ func (b *BufferView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "H":
 				b.buffer.ShiftSelectionsBackward(1, false)
 			case "j":
-				b.buffer.ShiftSelections(buffer.SelectionDirectionLeft, 1)
+				b.buffer.ShiftSelectionsDown(1, true)
+			case "J":
+				b.buffer.ShiftSelectionsDown(1, false)
 			case "k":
-				b.buffer.ShiftSelections(buffer.SelectionDirectionUp, 1)
+				// b.buffer.ShiftSelections(buffer.SelectionDirectionUp, 1)
 			case "l":
 				b.buffer.ShiftSelectionsForward(1, true)
 			case "L":

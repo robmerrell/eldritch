@@ -20,6 +20,9 @@ type Selection struct {
 	// anchor and head points as rune offsets in the document
 	Anchor int
 	Head   int
+
+	// when moving horizontally set this so we can use it when moving vertically
+	PreferredLineOffset int
 }
 
 // NewSelection creates a new selection at the given anchor and head.
