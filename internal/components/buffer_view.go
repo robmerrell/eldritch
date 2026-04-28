@@ -41,7 +41,9 @@ func (b *BufferView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "J":
 				b.buffer.ShiftSelectionsDown(1, false)
 			case "k":
-				// b.buffer.ShiftSelections(buffer.SelectionDirectionUp, 1)
+				b.buffer.ShiftSelectionsUp(1, true)
+			case "K":
+				b.buffer.ShiftSelectionsUp(1, false)
 			case "l":
 				b.buffer.ShiftSelectionsForward(1, true)
 			case "L":
@@ -51,6 +53,8 @@ func (b *BufferView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			b.buffer.Insert([]rune(msg.PressMsg.String())[0])
 		}
 	}
+
+	b.buffer.LogSelections()
 
 	_, cmd := b.modeline.Update(msg)
 	return b, cmd

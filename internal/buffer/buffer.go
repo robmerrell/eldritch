@@ -25,6 +25,7 @@ package buffer
 import (
 	"bufio"
 	"errors"
+	"log"
 	"os"
 	"slices"
 	"strings"
@@ -67,7 +68,7 @@ type Buffer struct {
 // NewBuffer creates a new buffer with default options.
 func NewBuffer() *Buffer {
 	b := &Buffer{
-		selections: []*Selection{NewSelection(0, 0)},
+		selections: []*Selection{NewSelection(0, 0, 0, 0)},
 	}
 	b.primarySelection = b.selections[0]
 	b.Clear()
@@ -92,6 +93,13 @@ func (b *Buffer) Clear() {
 // AssignName gives the buffer a name
 func (b *Buffer) AssignName(name string) {
 	b.name = &name
+}
+
+// LogSelections is a temporary debug helper
+func (b *Buffer) LogSelections() {
+	for i, sel := range b.selections {
+		log.Printf("%d -- row: %d, col: %d", i, sel.HeadRow, sel.HeadCol)
+	}
 }
 
 // Insert inserts a rune at all selection positions. Characters are inserted before the selection.
@@ -126,67 +134,21 @@ func (b *Buffer) SetContents(contents string) {
 	}
 }
 
-// endOfDocumentOffset calculates the offset that represents the end of the document
-func (b *Buffer) endOfDocumentOffset() int {
-	offset := 0
-
-	for _, line := range b.contents {
-		offset += line.length
-	}
-
-	return offset
-}
-
-// OffsetToLineNum returns the (0 based) line number that the offset is found in.
-func (b *Buffer) OffsetToLineNum(offset int) int {
-	acc := 0
-
-	for i, line := range b.contents {
-		if acc+line.length > offset {
-			return i
-		}
-
-		acc += line.length
-	}
-
-	// fallback to last line
-	return len(b.contents) - 1
-}
-
-// LocalLineOffset returns the offset of the current line the selection is on. Think column of the current line.
-func (b *Buffer) LocalLineOffset(selection *Selection) int {
-	acc := 0
-
-	for _, line := range b.contents {
-		if acc+line.length > selection.Head {
-			// return i
-		}
-
-		acc += line.length
-	}
-
-	// fallback to beginning of line
-	return 0
-}
-
-// AddSelection adds a selection to the buffer at the given offset for both head and anchor.
-func (b *Buffer) AddSelection(offset int) {
-	b.selections = append(b.selections, NewSelection(offset, offset))
-}
-
 // OffsetAttribute returns a single attribute for the given rune offset. I suspect this will go
 // away once I need to render diagnostics.
-func (b *Buffer) OffsetAttribute(lineIndex, offset int) string {
-	contentOffset := offset
-	for i := range lineIndex {
-		contentOffset += b.contents[i].length
-	}
-
+func (b *Buffer) OffsetAttribute(row, col int) string {
 	for _, selection := range b.selections {
-		if contentOffset >= selection.Anchor && contentOffset <= selection.Head-1 {
-			return "selection_tail"
-		} else if contentOffset == selection.Head {
+		// head
+		if selection.HeadRow == row && selection.HeadCol == col {
 			return "selection_head"
+		}
+
+		// tail
+		if min(selection.HeadRow, selection.AnchorRow) <= row &&
+			row <= max(selection.HeadRow, selection.AnchorRow) &&
+			min(selection.HeadCol, selection.AnchorCol) <= col &&
+			col <= max(selection.HeadCol, selection.AnchorCol) {
+			return "selection_tail"
 		}
 	}
 
@@ -197,11 +159,28 @@ func (b *Buffer) OffsetAttribute(lineIndex, offset int) string {
 // also move the anchor.
 func (b *Buffer) ShiftSelectionsForward(count int, collapse bool) {
 	for _, selection := range b.selections {
-		selection.Head = min(selection.Head+count, b.endOfDocumentOffset())
-		selection.PreferredLineOffset = b.LocalLineOffset(selection)
+		// find the row the shift will move to and then move any leftover columns
+		row := selection.HeadRow
+		runesLeft := count
+		for runesLeft > 0 && row < len(b.contents) {
+			line := b.contents[row]
+			if line.length > selection.HeadCol+count {
+				selection.HeadCol += count
+				break
+			}
+			runesLeft -= line.length
+
+			// shift to the beginning of the next line
+			row += 1
+			selection.HeadCol = 0
+		}
+
+		selection.HeadRow = row
+		selection.PreferredLineOffset = selection.HeadCol
 
 		if collapse {
-			selection.Anchor = selection.Head
+			selection.AnchorCol = selection.HeadCol
+			selection.AnchorRow = selection.HeadRow
 		}
 	}
 }
@@ -210,36 +189,63 @@ func (b *Buffer) ShiftSelectionsForward(count int, collapse bool) {
 // also move the anchor.
 func (b *Buffer) ShiftSelectionsBackward(count int, collapse bool) {
 	for _, selection := range b.selections {
-		selection.Head = max(selection.Head-count, 0)
+		// find the row the shift will move to and then move any leftover columns
+		row := selection.HeadRow
+		runesLeft := count
+		for runesLeft > 0 && row >= 0 {
+			line := b.contents[row]
+			if selection.HeadCol-count >= 0 {
+				selection.HeadCol -= count
+				break
+			}
+			runesLeft -= line.length
+
+			// shift to the end of the previous line
+			if row > 0 {
+				row -= 1
+				selection.HeadCol = b.contents[row].length - 1
+			}
+		}
+
+		selection.HeadRow = row
+		selection.PreferredLineOffset = selection.HeadCol
 
 		if collapse {
-			selection.Anchor = selection.Head
+			selection.AnchorCol = selection.HeadCol
+			selection.AnchorRow = selection.HeadRow
 		}
 	}
+
 }
 
 // ShiftSelectionsDown shifts the selections "count" spaces down. If collapsed is true then
 // also move the anchor.
 func (b *Buffer) ShiftSelectionsDown(count int, collapse bool) {
 	for _, selection := range b.selections {
-		// find the line number we need to jump to
-		currentLineNum := b.OffsetToLineNum(selection.Head)
-		lineNum := min(len(b.contents), currentLineNum+count)
+		targetLine := min(len(b.contents), selection.HeadRow+count)
 
-		// find the offset within the line. If there is a preferred column on the selection use that
-		// otherwise use the line end.
-		lineOffset := min(selection.PreferredLineOffset, b.contents[lineNum].length)
-
-		// find the offset in the buffer
-		bufferOffset := 0
-		for i := range lineNum {
-			bufferOffset += b.contents[i].length
-		}
-
-		selection.Head = bufferOffset + lineOffset
+		selection.HeadRow = targetLine
+		selection.HeadCol = min(selection.PreferredLineOffset, b.contents[targetLine].length-1)
 
 		if collapse {
-			selection.Anchor = selection.Head
+			selection.AnchorCol = selection.HeadCol
+			selection.AnchorRow = selection.HeadRow
+		}
+	}
+}
+
+// ShiftSelectionsUp shifts the selections "count" spaces up. If collapsed is true then
+// also move the anchor.
+func (b *Buffer) ShiftSelectionsUp(count int, collapse bool) {
+	for _, selection := range b.selections {
+		targetLine := max(0, selection.HeadRow-count)
+
+		selection.HeadRow = targetLine
+		selection.HeadCol = min(selection.PreferredLineOffset, b.contents[targetLine].length-1)
+
+		if collapse {
+			selection.AnchorCol = selection.HeadCol
+			selection.AnchorRow = selection.HeadRow
 		}
 	}
 }

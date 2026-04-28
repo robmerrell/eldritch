@@ -17,65 +17,28 @@ const (
 // The anchor and head having the same coordinates is a valid state. This is called collapsed
 // and this causes the selection to act more like a traditional cursor.
 type Selection struct {
-	// anchor and head points as rune offsets in the document
-	Anchor int
-	Head   int
+	AnchorCol int
+	AnchorRow int
+
+	HeadCol int
+	HeadRow int
 
 	// when moving horizontally set this so we can use it when moving vertically
 	PreferredLineOffset int
 }
 
 // NewSelection creates a new selection at the given anchor and head.
-func NewSelection(anchor, head int) *Selection {
-	return &Selection{Anchor: anchor, Head: head}
+func NewSelection(headRow, headCol, anchorRow, anchorCol int) *Selection {
+	return &Selection{HeadRow: headRow, HeadCol: headCol, AnchorRow: anchorRow, AnchorCol: anchorCol}
 }
 
 // SwapPositions swaps the anchor and the head
 func (s *Selection) SwapPositions() {
-	s.Anchor, s.Head = s.Head, s.Anchor
+	s.AnchorRow, s.HeadRow = s.HeadRow, s.AnchorRow
+	s.AnchorCol, s.HeadCol = s.HeadCol, s.AnchorCol
 }
 
 // IsCollapsed returns if the selection is collapsed or not.
 func (s *Selection) IsCollapsed() bool {
-	return s.Anchor == s.Head
+	return s.AnchorRow == s.HeadRow && s.AnchorCol == s.HeadCol
 }
-
-// Beginning returns the anchor or head location with the position closest to the top left
-// of the document.
-// func (s *Selection) Beginning() (int, int) {
-// 	// the most common case is anchor and head being the same coords so check for it first
-// 	if (s.AnchorY == s.HeadY) && (s.AnchorX == s.HeadX) {
-// 		return s.HeadX, s.HeadY
-// 	}
-
-// 	if s.AnchorY < s.HeadY {
-// 		return s.AnchorX, s.AnchorY
-// 	} else if s.AnchorY == s.HeadY {
-// 		// we're on the same line
-// 		if s.AnchorX < s.HeadX {
-// 			return s.AnchorX, s.AnchorY
-// 		} else {
-// 			return s.HeadX, s.HeadY
-// 		}
-// 	} else {
-// 		return s.HeadX, s.HeadY
-// 	}
-// }
-
-// SetAnchor sets the anchor location
-// func (s *Selection) SetAnchor(x, y int) {
-// 	s.AnchorX = x
-// 	s.AnchorY = y
-// }
-
-// // SetHead sets the head location
-// func (s *Selection) SetHead(x, y int) {
-// 	s.HeadX = x
-// 	s.HeadY = y
-// }
-
-// SetCollapsed sets both the anchor and head locations to the same point
-// func (s *Selection) SetCollapsed(x, y int) {
-// 	s.SetAnchor(x, y)
-// 	s.SetHead(x, y)
-// }
