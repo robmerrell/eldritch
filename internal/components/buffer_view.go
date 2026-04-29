@@ -48,6 +48,8 @@ func (b *BufferView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				b.buffer.ShiftSelectionsForward(1, true)
 			case "L":
 				b.buffer.ShiftSelectionsForward(1, false)
+			case "x":
+				b.buffer.SelectLine()
 			}
 		} else if msg.Mode == state.InputModeInsert {
 			b.buffer.Insert([]rune(msg.PressMsg.String())[0])

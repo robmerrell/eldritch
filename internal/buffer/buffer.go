@@ -144,10 +144,7 @@ func (b *Buffer) OffsetAttribute(row, col int) string {
 		}
 
 		// tail
-		if min(selection.HeadRow, selection.AnchorRow) <= row &&
-			row <= max(selection.HeadRow, selection.AnchorRow) &&
-			min(selection.HeadCol, selection.AnchorCol) <= col &&
-			col <= max(selection.HeadCol, selection.AnchorCol) {
+		if selection.PointSelected(row, col) {
 			return "selection_tail"
 		}
 	}
@@ -247,6 +244,17 @@ func (b *Buffer) ShiftSelectionsUp(count int, collapse bool) {
 			selection.AnchorCol = selection.HeadCol
 			selection.AnchorRow = selection.HeadRow
 		}
+	}
+}
+
+// SelectLine anchors to the beginning of the line and moves the head to the end.
+func (b *Buffer) SelectLine() {
+	for _, selection := range b.selections {
+		lineNum := max(0, selection.HeadRow)
+
+		selection.AnchorCol = 0
+		selection.HeadCol = b.contents[lineNum].length - 1
+		selection.PreferredLineOffset = selection.HeadCol
 	}
 }
 

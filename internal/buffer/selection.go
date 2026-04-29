@@ -1,14 +1,5 @@
 package buffer
 
-type SelectionDirection int
-
-const (
-	SelectionDirectionUp SelectionDirection = iota
-	SelectionDirectionRight
-	SelectionDirectionDown
-	SelectionDirectionLeft
-)
-
 // Selection works similarly to how I imagine Kakoune and Helix selections work. Instead
 // of the primitive text entry point being a cursor it is a selection. Every selection has
 // an anchor point and a head point. Inserting is done at the beginning of the selection
@@ -41,4 +32,23 @@ func (s *Selection) SwapPositions() {
 // IsCollapsed returns if the selection is collapsed or not.
 func (s *Selection) IsCollapsed() bool {
 	return s.AnchorRow == s.HeadRow && s.AnchorCol == s.HeadCol
+}
+
+// PointInSelections returns true if a point is between the anchor and head (inclusive)
+func (s *Selection) PointSelected(row, col int) bool {
+	startRow := min(s.HeadRow, s.AnchorRow)
+	startCol := min(s.HeadCol, s.AnchorCol)
+	endRow := max(s.HeadRow, s.AnchorRow)
+	endCol := max(s.HeadCol, s.AnchorCol)
+
+	// if we're on a start or end row we need to check the column, otherwise use full row
+	if row == startRow && row == endRow {
+		return col >= startCol && col <= endCol
+	} else if row == startRow {
+		return col >= startCol
+	} else if row == endRow {
+		return col <= endCol
+	}
+
+	return row > startRow && row < endRow
 }
