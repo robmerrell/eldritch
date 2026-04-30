@@ -45,9 +45,19 @@ func (s *Selection) PointSelected(row, col int) bool {
 	if row == startRow && row == endRow {
 		return col >= startCol && col <= endCol
 	} else if row == startRow {
-		return col >= startCol
+		// smallest point using row and col
+		if startRow == s.HeadRow {
+			return col >= s.HeadCol
+		} else {
+			return col >= s.AnchorCol
+		}
 	} else if row == endRow {
-		return col <= endCol
+		// larget point using row and col
+		if endRow == s.HeadRow {
+			return col <= s.HeadCol
+		} else {
+			return col <= s.AnchorCol
+		}
 	}
 
 	return row > startRow && row < endRow

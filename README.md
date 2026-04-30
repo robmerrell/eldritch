@@ -6,9 +6,9 @@ I wanted to have a project that I could use daily and not use AI while working i
 
 ## TODO
 ### Selections
-- [ ] Collapsed directional movements
-- [ ] Shift without breaking anchors
-- [ ] Moving back and forth from long lines to shorter lines
+- [x] Collapsed directional movements
+- [x] Shift without breaking anchors
+- [x] Moving back and forth from long lines to shorter lines
 - [ ] Shift by counts greater than 1
 - [ ] Select in
   - [ ] Word

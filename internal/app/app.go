@@ -67,9 +67,9 @@ func (m *rootModel) handleNormalModeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 		// quit for now
 		return m, tea.Quit
 
-	case "alt-x", ":":
-		// enter command mode
-		return m, m.enterMode(state.InputModeCommand)
+	// case "alt-x", ":":
+	// 	// enter command mode
+	// 	return m, m.enterMode(state.InputModeCommand)
 
 	case "i":
 		// enter insert mode
@@ -87,12 +87,9 @@ func (m *rootModel) handleInsertModeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 	// exit insert mode
 	case "esc", "ctrl+g":
 		return m, m.enterMode(state.InputModeNormal)
-
-	case "i":
-		return m, m.enterMode(state.InputModeInsert)
 	}
 
-	// TODO: any unhandled control keys just return early
+	// TODO: any unhandled control keys should just return early
 
 	// anything else send to the active buffer view
 	// wrap the event in the current state before sending it

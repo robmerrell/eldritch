@@ -104,24 +104,35 @@ func (b *Buffer) LogSelections() {
 
 // Insert inserts a rune at all selection positions. Characters are inserted before the selection.
 func (b *Buffer) Insert(input rune) {
-	/*
-		for _, selection := range b.selections {
-			// get the beginning of the selection regardless of anchor coords
-			x, y := selection.Beginning()
-			line := &b.contents[y]
+	for _, selection := range b.selections {
+		line := &b.contents[selection.HeadRow]
 
-			if line.length == x {
-				// at the end of the line, so append
-				line.runes = append(line.runes, input)
-			} else if line.length > x {
-				// Something already exists there, so insert it
-				line.runes = slices.Insert(line.runes, int(x), input)
-			}
-
-			line.length = line.length + 1
-			b.shiftSelection(selection, SelectionDirectionRight, 1)
+		if line.length == selection.HeadCol {
+			// at the end of the line, so append
+			line.runes = append(line.runes, input)
+		} else if line.length > selection.HeadCol {
+			// Something already exists there, so insert it
+			line.runes = slices.Insert(line.runes, selection.HeadCol, input)
 		}
-	*/
+
+		line.length += 1
+		b.ShiftSelectionsForward(1, selection.IsCollapsed())
+	}
+}
+
+func (b *Buffer) InsertNewLine() {
+	for _, selection := range b.selections {
+		currentLine := b.contents[selection.HeadRow]
+
+		// split the current line at head and put everything following it into a new line.
+		before := currentLine.runes[:selection.HeadCol]
+		after := currentLine.runes[selection.HeadCol:]
+		b.contents[selection.HeadRow] = newLine(before)
+
+		b.contents = slices.Insert(b.contents, selection.HeadRow+1, newLine(after))
+		selection.PreferredLineOffset = 0
+		b.ShiftSelectionsDown(1, selection.IsCollapsed())
+	}
 }
 
 // SetContents replaces current contents with the given input.
@@ -302,10 +313,13 @@ func (b *Buffer) LoadFile(filePath string) error {
 }
 
 // newLine creates an empty newline with the required line ending
-func newLine(lineRunes []rune) line {
+func newLine(inputRunes []rune) line {
+	lineRunes := slices.Clone(inputRunes)
+
 	// make sure it ends with a newline
 	if len(lineRunes) == 0 || lineRunes[len(lineRunes)-1] != '\n' {
 		lineRunes = append(lineRunes, []rune("\n")...)
+		log.Printf("line runes: %+v", string(lineRunes))
 	}
 
 	return line{runes: lineRunes, length: len(lineRunes)}

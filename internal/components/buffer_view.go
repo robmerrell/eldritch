@@ -52,7 +52,15 @@ func (b *BufferView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				b.buffer.SelectLine()
 			}
 		} else if msg.Mode == state.InputModeInsert {
-			b.buffer.Insert([]rune(msg.PressMsg.String())[0])
+			switch msg.PressMsg.String() {
+			case "enter":
+				b.buffer.InsertNewLine()
+
+			case "backspace":
+
+			default:
+				b.buffer.Insert([]rune(msg.PressMsg.String())[0])
+			}
 		}
 	}
 
