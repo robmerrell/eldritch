@@ -16,47 +16,54 @@ func TestSetContents(t *testing.T) {
 	assert.Equal(t, "is a buffer\n", string(buffer.contents[3].runes))
 }
 
-func testEndOfDocumentOffset(t *testing.T) {
-	buffer := NewBuffer()
-	buffer.SetContents("hello\nworld")
-
-	assert.Equal(t, 11, buffer.endOfDocumentOffset())
-}
-
-func TestAddSelection(t *testing.T) {
+func TestAddOpenSelection(t *testing.T) {
 	buffer := NewBuffer()
 	buffer.SetContents("hello")
-	buffer.AddSelection(2)
+	buffer.AddOpenSelection(0, 2, 0, 3)
 
-	assert.Equal(t, 2, buffer.selections[1].Anchor)
-	assert.Equal(t, 2, buffer.selections[1].Head)
+	assert.Equal(t, 0, buffer.selections[1].HeadRow)
+	assert.Equal(t, 2, buffer.selections[1].HeadCol)
+	assert.Equal(t, 0, buffer.selections[1].AnchorRow)
+	assert.Equal(t, 3, buffer.selections[1].AnchorCol)
+}
+
+func TestAddCollapsedSelection(t *testing.T) {
+	buffer := NewBuffer()
+	buffer.SetContents("hello")
+	buffer.AddCollapsedSelection(0, 2)
+
+	assert.Equal(t, 0, buffer.selections[1].HeadRow)
+	assert.Equal(t, 2, buffer.selections[1].HeadCol)
+	assert.Equal(t, 0, buffer.selections[1].AnchorRow)
+	assert.Equal(t, 2, buffer.selections[1].AnchorCol)
 }
 
 func TestShiftSelectionsForward(t *testing.T) {
 	buffer := NewBuffer()
 	buffer.SetContents("hello")
-	buffer.AddSelection(1) // at the e
-	buffer.AddSelection(4) // at the o
-	buffer.AddSelection(5) // at the end \n
+	buffer.AddCollapsedSelection(0, 1) // at the e
+	buffer.AddCollapsedSelection(0, 4) // at the o
+	buffer.AddCollapsedSelection(0, 5) // at the end \n
 	buffer.ShiftSelectionsForward(1, false)
 
 	// primary
-	assert.Equal(t, 0, buffer.selections[0].Anchor)
-	assert.Equal(t, 1, buffer.selections[0].Head)
+	assert.Equal(t, 0, buffer.selections[0].AnchorCol)
+	assert.Equal(t, 1, buffer.selections[0].HeadCol)
 
 	// started at e
-	assert.Equal(t, 1, buffer.selections[1].Anchor)
-	assert.Equal(t, 2, buffer.selections[1].Head)
+	assert.Equal(t, 1, buffer.selections[1].AnchorCol)
+	assert.Equal(t, 2, buffer.selections[1].HeadCol)
 
 	// move from the o to the newline
-	assert.Equal(t, 4, buffer.selections[2].Anchor)
-	assert.Equal(t, 5, buffer.selections[2].Head)
+	assert.Equal(t, 4, buffer.selections[2].AnchorCol)
+	assert.Equal(t, 5, buffer.selections[2].HeadCol)
 
 	// we're at the end of the document, so don't move
-	assert.Equal(t, 5, buffer.selections[3].Anchor)
-	assert.Equal(t, 5, buffer.selections[3].Head)
+	assert.Equal(t, 5, buffer.selections[3].AnchorCol)
+	assert.Equal(t, 5, buffer.selections[3].HeadCol)
 }
 
+/*
 func testShiftSelectionForwardMultiLine(t *testing.T) {
 	buffer := NewBuffer()
 	buffer.SetContents("hello\nsecond")

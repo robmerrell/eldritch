@@ -163,6 +163,24 @@ func (b *Buffer) OffsetAttribute(row, col int) string {
 	return "none"
 }
 
+// AddOpenSelection adds a new open selection at the given location. Returns a reference
+// to the new selection.
+func (b *Buffer) AddOpenSelection(headRow, headCol, anchorRow, anchorCol int) *Selection {
+	selection := NewSelection(headRow, headCol, anchorRow, anchorCol)
+	b.selections = append(b.selections, selection)
+
+	return selection
+}
+
+// AddCollapsedSelection adds a new collapsed selection at the given location. Returns a reference
+// to the new selection.
+func (b *Buffer) AddCollapsedSelection(row, col int) *Selection {
+	selection := NewSelection(row, col, row, col)
+	b.selections = append(b.selections, selection)
+
+	return selection
+}
+
 // ShiftSelectionsForward shifts the selections "count" spaces forward. If collapsed is true then
 // also move the anchor.
 func (b *Buffer) ShiftSelectionsForward(count int, collapse bool) {
@@ -178,9 +196,11 @@ func (b *Buffer) ShiftSelectionsForward(count int, collapse bool) {
 			}
 			runesLeft -= line.length
 
-			// shift to the beginning of the next line
-			row += 1
-			selection.HeadCol = 0
+			// shift to the beginning of the next line if we're not at the end
+			if row+1 < len(b.contents) {
+				row += 1
+				selection.HeadCol = 0
+			}
 		}
 
 		selection.HeadRow = row
@@ -230,7 +250,7 @@ func (b *Buffer) ShiftSelectionsBackward(count int, collapse bool) {
 // also move the anchor.
 func (b *Buffer) ShiftSelectionsDown(count int, collapse bool) {
 	for _, selection := range b.selections {
-		targetLine := min(len(b.contents), selection.HeadRow+count)
+		targetLine := min(len(b.contents)-1, selection.HeadRow+count)
 
 		selection.HeadRow = targetLine
 		selection.HeadCol = min(selection.PreferredLineOffset, b.contents[targetLine].length-1)

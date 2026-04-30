@@ -25,17 +25,18 @@ I wanted to have a project that I could use daily and not use AI while working i
 - [ ] Go to matching pair
 - [ ] Split selections
 - [ ] Swap anchor and head
+- [ ] Merge overlapping
 
 ### Buffers
 - [ ] Save/Load
   - [ ] Save as
 - [ ] Watch for external changes
-- [ ] Change contents slice to a rope or other data structure
+- [ ] Change contents slice to a rope or piece table
 - [ ] Prev buffer/next buffer by split
 - [ ] Mark as dirty
 - [ ] Search
 - [ ] Multiple selections
-- [ ] Input states
+- [x] Input states
 - [ ] Input
   - [ ] Insert
   - [ ] Delete
@@ -47,6 +48,7 @@ I wanted to have a project that I could use daily and not use AI while working i
   - [ ] Hooks
 - [ ] Copy to clipboard
 - [ ] Shackle size, position, etc.
+- [ ] Move selections to buffer view
 
 ### Modes
 - [ ] Insert
@@ -101,14 +103,17 @@ I wanted to have a project that I could use daily and not use AI while working i
 - [ ] c-g as escape hatch
 - [ ] escape to exit insert mode
 - [ ] : or alt-x to enter command mode
-- [ ] hjkl
+- [x] hjkl
+- [ ] Insert
+- [ ] Append
 - [ ] Prefix with count
 - [ ] by word
 - [ ] select line
 - [ ] select document
 - [ ] symbol?
 - [ ] jump to word
-- [ ] git change hunk
+- [ ] change
+- [ ] replace?
 - [ ] till
 - [ ] backtill
 - [ ] comment
@@ -117,6 +122,7 @@ I wanted to have a project that I could use daily and not use AI while working i
 - [ ] Go to next ] and previous [
   - [ ] problem
   - [ ] buffer
+  - [ ] git change hunk
   - [ ] git change hunk
 - [ ] Leader
   - [ ] File
