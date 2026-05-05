@@ -117,6 +117,8 @@ func TestShiftSelectionsBackwardMultiLine(t *testing.T) {
 	buffer.selections[0].AnchorCol = 0
 	buffer.selections[0].HeadCol = 0
 
+	buffer.ShiftSelectionsBackward(3, true)
+
 	assert.Equal(t, 0, buffer.selections[0].AnchorRow)
 	assert.Equal(t, 3, buffer.selections[0].AnchorCol)
 	assert.Equal(t, 0, buffer.selections[0].HeadRow)

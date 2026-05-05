@@ -224,32 +224,37 @@ func (b *Buffer) ShiftSelectionsForward(count int, collapse bool) {
 func (b *Buffer) ShiftSelectionsBackward(count int, collapse bool) {
 	for _, selection := range b.selections {
 		// find the row the shift will move to and then move any leftover columns
-		row := selection.HeadRow
+		updatedRow := selection.HeadRow
+		updatedCol := selection.HeadCol
 		runesLeft := count
-		for runesLeft > 0 && row >= 0 {
-			line := b.contents[row]
-			if selection.HeadCol-count >= 0 {
-				selection.HeadCol -= count
-				break
-			}
-			runesLeft -= line.length
 
-			// shift to the end of the previous line
-			if row > 0 {
-				row -= 1
-				selection.HeadCol = b.contents[row].length - 1
+		// advance until we run out of runes
+		for runesLeft > 0 {
+
+			// beginning of a line
+			if updatedCol == 0 {
+				// only shift the selection if we're not at the begging of the document; move up a line
+				if updatedRow > 0 {
+					updatedRow -= 1
+					line := b.contents[updatedRow]
+					updatedCol = line.length - 1
+				}
+			} else {
+				updatedCol -= 1
 			}
+
+			runesLeft -= 1
 		}
 
-		selection.HeadRow = row
-		selection.PreferredLineOffset = selection.HeadCol
+		selection.HeadRow = updatedRow
+		selection.HeadCol = updatedCol
+		selection.PreferredLineOffset = updatedCol
 
 		if collapse {
 			selection.AnchorCol = selection.HeadCol
 			selection.AnchorRow = selection.HeadRow
 		}
 	}
-
 }
 
 // ShiftSelectionsDown shifts the selections "count" spaces down. If collapsed is true then
