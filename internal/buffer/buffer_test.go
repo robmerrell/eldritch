@@ -63,103 +63,65 @@ func TestShiftSelectionsForward(t *testing.T) {
 	assert.Equal(t, 5, buffer.selections[3].HeadCol)
 }
 
-/*
-func testShiftSelectionForwardMultiLine(t *testing.T) {
+func TestShiftSelectionsForwardMultiLine(t *testing.T) {
 	buffer := NewBuffer()
 	buffer.SetContents("hello\nsecond")
 
 	// end of first line \n
-	buffer.selections[0].Anchor = 5
-	buffer.selections[0].Head = 5
+	buffer.selections[0].AnchorCol = 5
+	buffer.selections[0].HeadCol = 5
 
 	// end of the document
-	buffer.AddSelection(12)
+	buffer.AddCollapsedSelection(1, 6)
 
 	buffer.ShiftSelectionsForward(3, true)
 
-	assert.Equal(t, 8, buffer.selections[0].Anchor)
-	assert.Equal(t, 8, buffer.selections[0].Head)
+	assert.Equal(t, 1, buffer.selections[0].AnchorRow)
+	assert.Equal(t, 2, buffer.selections[0].AnchorCol)
+	assert.Equal(t, 1, buffer.selections[0].HeadRow)
+	assert.Equal(t, 2, buffer.selections[0].HeadCol)
 
-	assert.Equal(t, 12, buffer.selections[1].Anchor)
-	assert.Equal(t, 12, buffer.selections[1].Head)
+	assert.Equal(t, 1, buffer.selections[1].AnchorRow)
+	assert.Equal(t, 6, buffer.selections[1].AnchorCol)
+	assert.Equal(t, 1, buffer.selections[1].HeadRow)
+	assert.Equal(t, 6, buffer.selections[1].HeadCol)
 }
 
-/*
-func assertCollapsedSelection(t *testing.T, sel *Selection, x, y int) {
-	t.Helper()
-
-	if sel.AnchorX != x {
-		t.Errorf("Anchor x got: %d, expected %d", sel.AnchorX, x)
-	}
-
-	if sel.AnchorY != y {
-		t.Errorf("Anchor y got: %d, expected %d", sel.AnchorY, y)
-	}
-
-	if sel.HeadX != x {
-		t.Errorf("Head x got: %d, expected %d", sel.HeadX, x)
-	}
-
-	if sel.HeadY != y {
-		t.Errorf("Head y got: %d, expected %d", sel.HeadY, y)
-	}
-}
-*/
-
-/*
-func TestInsertSelectionPosition(t *testing.T) {
+func TestShiftSelectionsBackward(t *testing.T) {
 	buffer := NewBuffer()
+	buffer.SetContents("hello")
+	buffer.AddCollapsedSelection(0, 4) // at the o
+	buffer.AddCollapsedSelection(0, 5) // at the end \n
+	buffer.ShiftSelectionsBackward(1, false)
 
-	buffer.Insert(strRune("h"))
-	assertCollapsedSelection(t, buffer.selections[0], 1, 0)
+	// primary beginning of document, don't move
+	assert.Equal(t, 0, buffer.selections[0].AnchorCol)
+	assert.Equal(t, 0, buffer.selections[0].HeadCol)
 
-	buffer.Insert(strRune("i"))
-	assertCollapsedSelection(t, buffer.selections[0], 2, 0)
+	// started at o
+	assert.Equal(t, 4, buffer.selections[1].AnchorCol)
+	assert.Equal(t, 3, buffer.selections[1].HeadCol)
+
+	// move from the newline to o
+	assert.Equal(t, 5, buffer.selections[2].AnchorCol)
+	assert.Equal(t, 4, buffer.selections[2].HeadCol)
 }
-*/
 
-/*
-func TestInsertBacktrackOne(t *testing.T) {
-	// add "eld" at the beginning of the buffer
+func TestShiftSelectionsBackwardMultiLine(t *testing.T) {
 	buffer := NewBuffer()
-	buffer.Insert(strRune("e"))
-	buffer.Insert(strRune("l"))
-	buffer.Insert(strRune("d"))
+	buffer.SetContents("hello\nsecond")
 
-	// insert - between the l and the d
-	buffer.ShiftSelections(SelectionDirectionLeft, 1)
-	buffer.Insert(strRune("-"))
+	// beginning of the second line
+	buffer.selections[0].AnchorRow = 1
+	buffer.selections[0].HeadRow = 1
+	buffer.selections[0].AnchorCol = 0
+	buffer.selections[0].HeadCol = 0
 
-	if got, want := string(buffer.contents[0].runes), "el-d"; got != want {
-		t.Errorf("content=%s, want=%s", got, want)
-	}
+	assert.Equal(t, 0, buffer.selections[0].AnchorRow)
+	assert.Equal(t, 3, buffer.selections[0].AnchorCol)
+	assert.Equal(t, 0, buffer.selections[0].HeadRow)
+	assert.Equal(t, 3, buffer.selections[0].HeadCol)
 }
-
-func TestInsertBacktrackToBeginning(t *testing.T) {
-	// add "eld" at the beginning of the buffer
-	buffer := NewBuffer()
-	buffer.Insert(strRune("e"))
-	buffer.Insert(strRune("l"))
-	buffer.Insert(strRune("d"))
-
-	// insert - between the l and the d
-	buffer.ShiftSelections(SelectionDirectionLeft, 1)
-	buffer.ShiftSelections(SelectionDirectionLeft, 1)
-	buffer.ShiftSelections(SelectionDirectionLeft, 1)
-	buffer.Insert([]rune("-")[0])
-
-	if got, want := string(buffer.contents[0].runes), "-eld"; got != want {
-		t.Errorf("content=%s, want=%s", got, want)
-	}
-}
-
-func setupSelectionBuffer() *Buffer {
-	buffer := NewBuffer()
-	buffer.SetContents([]rune("hello\nworld\nthis\nis a buffer"))
-
-	return buffer
-}
-*/
 
 /*
 func TestShiftSelectionUp(t *testing.T) {
@@ -208,73 +170,6 @@ func TestShiftSelectionDown(t *testing.T) {
 	assertCollapsedSelection(t, buffer.selections[0], 0, lineCount-1)
 }
 */
-
-/*
-func TestShiftSelectionRight(t *testing.T) {
-	// buffer := NewBuffer()
-	// buffer.SetContents([]rune("hello\nworld\nthis\nis a buffer"))
-
-	// buffer := setupSelectionBuffer()
-	// line := buffer.contents[0]
-	// lineCount := len(buffer.contents)
-
-	// from 0 moves right
-	// buffer.selections[0].SetCollapsed(0, 0)
-	// buffer.ShiftSelections(SelectionDirectionRight, 1)
-	// assertCollapsedSelection(t, buffer.selections[0], 1, 0)
-
-	// // from the middle
-	// buffer.selections[0].SetCollapsed(3, 0)
-	// buffer.ShiftSelections(SelectionDirectionRight, 1)
-	// assertCollapsedSelection(t, buffer.selections[0], 4, 0)
-
-	// // after the last character moves the cursor past it to empty space
-	// buffer.selections[0].SetCollapsed(line.length-1, 0)
-	// buffer.ShiftSelections(SelectionDirectionRight, 1)
-	// assertCollapsedSelection(t, buffer.selections[0], 5, 0)
-
-	// // at end of line goes to the beginning of the next line
-	// buffer.selections[0].SetCollapsed(line.length, 0)
-	// buffer.ShiftSelections(SelectionDirectionRight, 1)
-	// assertCollapsedSelection(t, buffer.selections[0], 0, 1)
-
-	// // at the end of the last line doesn't move
-	// line = buffer.contents[3]
-	// buffer.selections[0].SetCollapsed(line.length, lineCount-1)
-	// buffer.ShiftSelections(SelectionDirectionRight, 1)
-	// assertCollapsedSelection(t, buffer.selections[0], line.length, lineCount-1)
-}
-*/
-
-/*
-func TestShiftSelectionLeft(t *testing.T) {
-	buffer := setupSelectionBuffer()
-
-	// from 0, 0 doesn't move
-	buffer.selections[0].SetCollapsed(0, 0)
-	buffer.ShiftSelections(SelectionDirectionLeft, 1)
-	assertCollapsedSelection(t, buffer.selections[0], 0, 0)
-
-	// from the middle
-	buffer.selections[0].SetCollapsed(3, 0)
-	buffer.ShiftSelections(SelectionDirectionLeft, 1)
-	assertCollapsedSelection(t, buffer.selections[0], 2, 0)
-
-	// at beginning of line goes to the end of the next line
-	buffer.selections[0].SetCollapsed(0, 2)
-	buffer.ShiftSelections(SelectionDirectionLeft, 1)
-	newLine := buffer.contents[1]
-	assertCollapsedSelection(t, buffer.selections[0], newLine.length, 1)
-}
-*/
-
-// func TestShiftingSelectionsByCount(t *testing.T) {
-
-// }
-
-// func TestShiftingSelectionsPreserveAnchor(t *testing.T) {
-
-// }
 
 /*
 func TestBufferWithBadFile(t *testing.T) {

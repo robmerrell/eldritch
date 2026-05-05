@@ -48,6 +48,8 @@ func (b *BufferView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				b.buffer.ShiftSelectionsForward(1, true)
 			case "L":
 				b.buffer.ShiftSelectionsForward(1, false)
+			case "w":
+				b.buffer.ShiftSelectionsForward(3, true)
 			case "x":
 				b.buffer.SelectLine()
 			}

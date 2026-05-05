@@ -186,25 +186,31 @@ func (b *Buffer) AddCollapsedSelection(row, col int) *Selection {
 func (b *Buffer) ShiftSelectionsForward(count int, collapse bool) {
 	for _, selection := range b.selections {
 		// find the row the shift will move to and then move any leftover columns
-		row := selection.HeadRow
+		updatedRow := selection.HeadRow
+		updatedCol := selection.HeadCol
 		runesLeft := count
-		for runesLeft > 0 && row < len(b.contents) {
-			line := b.contents[row]
-			if line.length > selection.HeadCol+count {
-				selection.HeadCol += count
-				break
-			}
-			runesLeft -= line.length
 
-			// shift to the beginning of the next line if we're not at the end
-			if row+1 < len(b.contents) {
-				row += 1
-				selection.HeadCol = 0
+		// advance until we run out of runes
+		for runesLeft > 0 {
+			line := b.contents[updatedRow]
+
+			// end of a line
+			if updatedCol == line.length-1 {
+				// only shift the selection if we're not at the end of the document; move down a line
+				if updatedRow < len(b.contents)-1 {
+					updatedRow += 1
+					updatedCol = 0
+				}
+			} else {
+				updatedCol += 1
 			}
+
+			runesLeft -= 1
 		}
 
-		selection.HeadRow = row
-		selection.PreferredLineOffset = selection.HeadCol
+		selection.HeadRow = updatedRow
+		selection.HeadCol = updatedCol
+		selection.PreferredLineOffset = updatedCol
 
 		if collapse {
 			selection.AnchorCol = selection.HeadCol
@@ -339,7 +345,6 @@ func newLine(inputRunes []rune) line {
 	// make sure it ends with a newline
 	if len(lineRunes) == 0 || lineRunes[len(lineRunes)-1] != '\n' {
 		lineRunes = append(lineRunes, []rune("\n")...)
-		log.Printf("line runes: %+v", string(lineRunes))
 	}
 
 	return line{runes: lineRunes, length: len(lineRunes)}
