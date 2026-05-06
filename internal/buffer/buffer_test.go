@@ -27,6 +27,27 @@ func TestAddOpenSelection(t *testing.T) {
 	assert.Equal(t, 3, buffer.selections[1].AnchorCol)
 }
 
+func TestSortSelections(t *testing.T) {
+	buffer := NewBuffer()
+	buffer.SetContents("hello\nsecond\nthird\nfourth")
+	buffer.selections[0].SetCollapsed(1, 3)
+	buffer.AddCollapsedSelection(3, 5)
+	buffer.AddCollapsedSelection(3, 4)
+	buffer.AddCollapsedSelection(0, 2)
+
+	assert.Equal(t, 0, buffer.selections[0].HeadRow)
+	assert.Equal(t, 2, buffer.selections[0].HeadCol)
+
+	assert.Equal(t, 1, buffer.selections[1].HeadRow)
+	assert.Equal(t, 3, buffer.selections[1].HeadCol)
+
+	assert.Equal(t, 3, buffer.selections[2].HeadRow)
+	assert.Equal(t, 4, buffer.selections[2].HeadCol)
+
+	assert.Equal(t, 3, buffer.selections[3].HeadRow)
+	assert.Equal(t, 5, buffer.selections[3].HeadCol)
+}
+
 func TestAddCollapsedSelection(t *testing.T) {
 	buffer := NewBuffer()
 	buffer.SetContents("hello")
@@ -125,96 +146,121 @@ func TestShiftSelectionsBackwardMultiLine(t *testing.T) {
 	assert.Equal(t, 3, buffer.selections[0].HeadCol)
 }
 
-/*
 func TestShiftSelectionUp(t *testing.T) {
-	buffer := setupSelectionBuffer()
+	buffer := NewBuffer()
+	buffer.SetContents("hello\nsecond\nthird\nfourth")
 
 	// from 0 doesn't go up
-	buffer.selections[0].SetCollapsed(3, 0)
-	buffer.ShiftSelections(SelectionDirectionUp, 1)
-	assertCollapsedSelection(t, buffer.selections[0], 3, 0)
+	buffer.selections[0].SetCollapsed(0, 3)
+	buffer.ShiftSelectionsUp(1, true)
+	assert.Equal(t, 0, buffer.selections[0].HeadRow)
+	assert.Equal(t, 3, buffer.selections[0].HeadCol)
 
-	// from 1 goes up
-	buffer.selections[0].SetCollapsed(3, 1)
-	buffer.ShiftSelections(SelectionDirectionUp, 1)
-	assertCollapsedSelection(t, buffer.selections[0], 3, 0)
+	// from 2 goes up
+	buffer.selections[0].SetCollapsed(2, 3)
+	buffer.ShiftSelectionsUp(1, true)
+	assert.Equal(t, 1, buffer.selections[0].HeadRow)
+	assert.Equal(t, 3, buffer.selections[0].HeadCol)
 
-	// move up at end of line to a shorter line
-	line := buffer.contents[3]
-	buffer.selections[0].SetCollapsed(line.length, 3)
-	buffer.ShiftSelections(SelectionDirectionUp, 1)
-	assertCollapsedSelection(t, buffer.selections[0], 4, 2)
+	// move up to end of line if preferred column is too big
+	buffer.selections[0].SetCollapsed(1, 6)
+	buffer.ShiftSelectionsUp(1, true)
+	assert.Equal(t, 0, buffer.selections[0].HeadRow)
+	assert.Equal(t, 5, buffer.selections[0].HeadCol)
+
+	// move up multiple lines
+	buffer.selections[0].SetCollapsed(3, 2)
+	buffer.ShiftSelectionsUp(2, true)
+	assert.Equal(t, 1, buffer.selections[0].HeadRow)
+	assert.Equal(t, 2, buffer.selections[0].HeadCol)
 }
 
 func TestShiftSelectionDown(t *testing.T) {
-	buffer := setupSelectionBuffer()
-	lineCount := len(buffer.contents)
+	buffer := NewBuffer()
+	buffer.SetContents("hello\nsecond\nthird\nfourth")
 
 	// from 0 goes down
-	buffer.selections[0].SetCollapsed(0, 0)
-	buffer.ShiftSelections(SelectionDirectionDown, 1)
-	assertCollapsedSelection(t, buffer.selections[0], 0, 1)
+	buffer.selections[0].SetCollapsed(0, 3)
+	buffer.ShiftSelectionsDown(1, true)
+	assert.Equal(t, 1, buffer.selections[0].HeadRow)
+	assert.Equal(t, 3, buffer.selections[0].HeadCol)
 
-	// move down at end of line, but move to shorter line
-	line := buffer.contents[1]
-	buffer.selections[0].SetCollapsed(line.length, 1)
-	buffer.ShiftSelections(SelectionDirectionDown, 1)
-	assertCollapsedSelection(t, buffer.selections[0], 4, 2)
-
-	// move down, but don't move X if not at the end of the line
-	buffer.selections[0].SetCollapsed(0, 1)
-	buffer.ShiftSelections(SelectionDirectionDown, 1)
-	assertCollapsedSelection(t, buffer.selections[0], 0, 2)
+	// move down, but preferred column is bigger than next line
+	buffer.selections[0].SetCollapsed(1, 6)
+	buffer.ShiftSelectionsDown(1, true)
+	assert.Equal(t, 2, buffer.selections[0].HeadRow)
+	assert.Equal(t, 5, buffer.selections[0].HeadCol)
 
 	// from last line don't go down
-	buffer.selections[0].SetCollapsed(0, lineCount-1)
-	buffer.ShiftSelections(SelectionDirectionDown, 1)
-	assertCollapsedSelection(t, buffer.selections[0], 0, lineCount-1)
-}
-*/
+	buffer.selections[0].SetCollapsed(3, 1)
+	buffer.ShiftSelectionsDown(1, true)
+	assert.Equal(t, 3, buffer.selections[0].HeadRow)
+	assert.Equal(t, 1, buffer.selections[0].HeadCol)
 
-/*
+	// move down multiple lines
+	buffer.selections[0].SetCollapsed(0, 3)
+	buffer.ShiftSelectionsDown(2, true)
+	assert.Equal(t, 2, buffer.selections[0].HeadRow)
+	assert.Equal(t, 3, buffer.selections[0].HeadCol)
+}
+
+func TestSelectLine(t *testing.T) {
+	buffer := NewBuffer()
+	buffer.SetContents("hello\nsecond\nthird\nfourth")
+
+	buffer.selections[0].SetCollapsed(1, 2)
+	buffer.SelectLine()
+
+	assert.Equal(t, 1, buffer.selections[0].AnchorRow)
+	assert.Equal(t, 0, buffer.selections[0].AnchorCol)
+	assert.Equal(t, 1, buffer.selections[0].HeadRow)
+	assert.Equal(t, 6, buffer.selections[0].HeadCol)
+}
+
+func TestInsert(t *testing.T) {
+	buffer := NewBuffer()
+	buffer.SetContents("this is a test\n")
+	buffer.selections[0].SetCollapsed(0, 0)
+	buffer.AddCollapsedSelection(0, 2)
+	buffer.AddCollapsedSelection(0, 10)
+
+	buffer.Insert('x')
+
+	assert.Equal(t, "xthxis is a xtest\n", string(buffer.contents[0].runes))
+}
+
+func TestInsertNewLine(t *testing.T) {
+	buffer := NewBuffer()
+	buffer.SetContents("hello\nworld\n")
+	buffer.selections[0].SetCollapsed(0, 2)
+	buffer.AddCollapsedSelection(1, 2)
+
+	buffer.InsertNewLine()
+
+	assert.Equal(t, "he\n", string(buffer.contents[0].runes))
+	assert.Equal(t, "llo\n", string(buffer.contents[1].runes))
+	assert.Equal(t, "wo\n", string(buffer.contents[2].runes))
+	assert.Equal(t, "rld\n", string(buffer.contents[3].runes))
+}
+
 func TestBufferWithBadFile(t *testing.T) {
 	_, err := NewBufferWithFile("badfile")
-	if err == nil {
-		t.Fatalf("Expected error, got none")
-	}
+	assert.NotNil(t, err)
 }
 
 func TestBufferWithFile(t *testing.T) {
 	buffer, err := NewBufferWithFile("testdata/file.txt")
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
+	assert.Nil(t, err)
 
-	// backing file
-	if got, want := (*buffer.backingFile), "testdata/file.txt"; got != want {
-		t.Errorf("file=%s, want=%s", got, want)
-	}
-
-	// line length
-	if got, want := len(buffer.contents), 3; got != want {
-		t.Errorf("length=%d, want=%d", got, want)
-	}
-
-	// file contents
-	if got, want := string(buffer.contents[0].runes), "line 1"; got != want {
-		t.Errorf("line=%s, want=%s", got, want)
-	}
-	if got, want := string(buffer.contents[1].runes), "line 2"; got != want {
-		t.Errorf("line=%s, want=%s", got, want)
-	}
-	if got, want := string(buffer.contents[2].runes), "line 3"; got != want {
-		t.Errorf("line=%s, want=%s", got, want)
-	}
+	assert.Equal(t, "testdata/file.txt", *buffer.backingFile)
+	assert.Equal(t, 3, len(buffer.contents))
+	assert.Equal(t, "line 1\n", string(buffer.contents[0].runes))
+	assert.Equal(t, "line 2\n", string(buffer.contents[1].runes))
+	assert.Equal(t, "line 3\n", string(buffer.contents[2].runes))
 }
 
 func TestClear(t *testing.T) {
 	buffer := &Buffer{}
 	buffer.Clear()
-
-	if got, want := cap(buffer.contents), DefaultLineCap; got != want {
-		t.Fatalf("cap=%d, want=%d", got, want)
-	}
+	assert.Equal(t, DefaultLineCap, cap(buffer.contents))
 }
-*/

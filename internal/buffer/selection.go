@@ -20,7 +20,16 @@ type Selection struct {
 
 // NewSelection creates a new selection at the given anchor and head.
 func NewSelection(headRow, headCol, anchorRow, anchorCol int) *Selection {
-	return &Selection{HeadRow: headRow, HeadCol: headCol, AnchorRow: anchorRow, AnchorCol: anchorCol}
+	return &Selection{HeadRow: headRow, HeadCol: headCol, AnchorRow: anchorRow, AnchorCol: anchorCol, PreferredLineOffset: headCol}
+}
+
+// SetCollapsed sets a collapsed position
+func (s *Selection) SetCollapsed(row, col int) {
+	s.HeadRow = row
+	s.HeadCol = col
+	s.AnchorRow = row
+	s.AnchorCol = col
+	s.PreferredLineOffset = col
 }
 
 // SwapPositions swaps the anchor and the head

@@ -24,6 +24,7 @@ package buffer
 
 import (
 	"bufio"
+	"cmp"
 	"errors"
 	"log"
 	"os"
@@ -120,6 +121,7 @@ func (b *Buffer) Insert(input rune) {
 	}
 }
 
+// InsertNewLine creates a new line at each selection head.
 func (b *Buffer) InsertNewLine() {
 	for _, selection := range b.selections {
 		currentLine := b.contents[selection.HeadRow]
@@ -133,6 +135,11 @@ func (b *Buffer) InsertNewLine() {
 		selection.PreferredLineOffset = 0
 		b.ShiftSelectionsDown(1, selection.IsCollapsed())
 	}
+}
+
+// Delete delets the characters contained in each selection
+func (b *Buffer) Delete() {
+
 }
 
 // SetContents replaces current contents with the given input.
@@ -168,6 +175,7 @@ func (b *Buffer) OffsetAttribute(row, col int) string {
 func (b *Buffer) AddOpenSelection(headRow, headCol, anchorRow, anchorCol int) *Selection {
 	selection := NewSelection(headRow, headCol, anchorRow, anchorCol)
 	b.selections = append(b.selections, selection)
+	b.sortSelections()
 
 	return selection
 }
@@ -177,8 +185,20 @@ func (b *Buffer) AddOpenSelection(headRow, headCol, anchorRow, anchorCol int) *S
 func (b *Buffer) AddCollapsedSelection(row, col int) *Selection {
 	selection := NewSelection(row, col, row, col)
 	b.selections = append(b.selections, selection)
+	b.sortSelections()
 
 	return selection
+}
+
+// sortSelections sorts the selections from the top of the document to the end of the document. This
+// should be done anytime a selection is added.
+func (b *Buffer) sortSelections() {
+	slices.SortFunc(b.selections, func(a, b *Selection) int {
+		return cmp.Or(
+			cmp.Compare(a.HeadRow, b.HeadRow),
+			cmp.Compare(a.HeadCol, b.HeadCol),
+		)
+	})
 }
 
 // ShiftSelectionsForward shifts the selections "count" spaces forward. If collapsed is true then
