@@ -137,9 +137,54 @@ func (b *Buffer) InsertNewLine() {
 	}
 }
 
-// Delete delets the characters contained in each selection
+// Delete delets the characters contained in each selection. This is ineffecient, so I'll need
+// to come back to this later.
 func (b *Buffer) Delete() {
+	for _, selection := range b.selections {
+		startRow := min(selection.HeadRow, selection.AnchorRow)
+		startCol := min(selection.HeadCol, selection.AnchorCol)
+		endRow := max(selection.HeadRow, selection.AnchorRow)
+		endCol := max(selection.HeadCol, selection.AnchorCol)
 
+		// only a single row is in the selection
+		if startRow == endRow {
+			// the entire row is selected
+			if startCol == 0 && endCol == (b.contents[startRow].length-1) {
+				b.contents = slices.Delete(b.contents, startRow, startRow+1)
+				selection.SetCollapsed(selection.AnchorRow, selection.AnchorCol)
+				return
+			}
+
+			// delete runes and recalculate
+			b.contents[startRow].runes = slices.Delete(b.contents[startRow].runes, startCol, endCol+1)
+			b.contents[startRow].length = len(b.contents[startRow].runes)
+			selection.SetCollapsed(selection.AnchorRow, selection.AnchorCol)
+			return
+		}
+
+		for row := startRow; row < endRow; row++ {
+			// first row selected
+			if row == startRow {
+				b.contents[row].runes = slices.Delete(b.contents[row].runes, startCol, b.contents[row].length)
+				b.contents[row].length = len(b.contents[row].runes)
+
+				continue
+			}
+
+			// last row selected
+			if row == endRow {
+				b.contents[row].runes = slices.Delete(b.contents[row].runes, 0, endCol+1)
+				b.contents[row].length = len(b.contents[row].runes)
+
+				continue
+			}
+
+			// the entire row is selected because it is between the first and last
+			b.contents = slices.Delete(b.contents, startRow, endRow+1)
+		}
+
+		selection.SetCollapsed(selection.AnchorRow, selection.AnchorCol)
+	}
 }
 
 // SetContents replaces current contents with the given input.

@@ -32,6 +32,8 @@ func (b *BufferView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case state.MsgModeKeyPress:
 		if msg.Mode == state.InputModeNormal {
 			switch msg.PressMsg.String() {
+			case "d":
+				b.buffer.Delete()
 			case "h":
 				b.buffer.ShiftSelectionsBackward(1, true)
 			case "H":

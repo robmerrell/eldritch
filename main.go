@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	fileName := "./mise.toml"
+	fileName := "./README.md"
 	eldApp, err := app.Init(&fileName)
 	if err != nil {
 		fmt.Println("fatal:", err)

@@ -108,7 +108,7 @@ I wanted to have a project that I could use daily and not use AI while working i
 - [ ] Append
 - [ ] Prefix with count
 - [ ] by word
-- [ ] select line
+- [x] select line
 - [ ] select document
 - [ ] symbol?
 - [ ] jump to word
@@ -118,7 +118,6 @@ I wanted to have a project that I could use daily and not use AI while working i
 - [ ] backtill
 - [ ] comment
 - [ ] redo last uncollapsed selection
-- [ ] replace
 - [ ] Go to next ] and previous [
   - [ ] problem
   - [ ] buffer
