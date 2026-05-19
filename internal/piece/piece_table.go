@@ -9,6 +9,8 @@
 package piece
 
 import (
+	"fmt"
+	"iter"
 	"slices"
 )
 
@@ -20,6 +22,9 @@ const defaultAddBufferSize = 4096
 // defaultPieceTableSize is the default capacity for the pieces list. Same idea as the default
 // add buffer size
 const defaultPieceSize = 512
+
+// defaultLineSize is the default size we use for lines when creating line slices.
+const defaultLineSize = 256
 
 // the two types of buffers for the piece table.
 type bufferType int
@@ -61,36 +66,118 @@ func FromSlice(input []rune) *PieceTable {
 	}
 }
 
+// Contents traverses all pieces and generates a full document.
+func (p *PieceTable) Contents() []rune {
+	contents := []rune{}
+
+	for _, piece := range p.pieces {
+		contents = append(contents, p.pieceContents(piece)...)
+	}
+
+	return contents
+}
+
+// pieceContents returns the contents that a piece points at.
+func (p *PieceTable) pieceContents(piece *piece) []rune {
+	if piece.buffer == bufferTypeOriginal {
+		return p.original[piece.start : piece.start+piece.length]
+	}
+
+	return p.add[piece.start : piece.start+piece.length]
+}
+
+// Lines is a generator that produces lines (index is 0 based).
+func (p *PieceTable) Lines(lineStart, lineEnd int) iter.Seq[[]rune] {
+	return func(yield func([]rune) bool) {
+		lineCount := 0
+
+		line := make([]rune, 0, defaultLineSize)
+		for _, piece := range p.pieces {
+			for _, rn := range p.pieceContents(piece) {
+				if lineCount >= lineStart && lineCount <= lineEnd {
+					line = append(line, rn)
+				}
+
+				if rn == '\n' {
+					if lineCount >= lineStart && lineCount <= lineEnd {
+						if !yield(line) {
+							return
+						}
+						line = make([]rune, 0, defaultLineSize)
+					}
+
+					lineCount += 1
+				}
+			}
+		}
+	}
+}
+
+// Len returns the number of runes in the content
+func (p *PieceTable) Len() int {
+	count := 0
+
+	for _, piece := range p.pieces {
+		count += piece.length
+	}
+
+	return count
+}
+
+// func (p *PieceTable) LineToOffset(line int) int {
+
+// }
+
+// func (p *PieceTable) OffsetToLine(offset int) int {
+
+// }
+
 // Insert inserts a new slice of runes into the piece table. This is a good comment.
-func (p *PieceTable) Insert(offset int, input []rune) {
+func (p *PieceTable) Insert(offset int, input []rune) error {
+	if offset < 0 {
+		return fmt.Errorf("Invalid offset for insertion: %d", offset)
+	}
+
 	addOffset := len(p.add)
 	p.add = append(p.add, input...)
 
+	// inserting at the beginning of the document is a special case. Just prepend the new node
+	if offset == 0 {
+		newPiece := &piece{buffer: bufferTypeAdd, start: addOffset, length: len(input)}
+		p.pieces = append([]*piece{newPiece}, p.pieces...)
+		return nil
+	}
+
 	// find the piece that we want that needs to be split
-	pieceIndex, pieceOffset := p.pieceIndex(offset)
-	splitPiece := p.pieces[pieceIndex]
+	pieceIndex, pieceOffset, err := p.pieceIndex(offset)
+	if err != nil {
+		return err
+	}
 
 	// new pieces
+	splitPiece := p.pieces[pieceIndex]
 	beforePiece := &piece{buffer: splitPiece.buffer, start: splitPiece.start, length: pieceOffset}
 	newPiece := &piece{buffer: bufferTypeAdd, start: addOffset, length: len(input)}
 	afterPiece := &piece{buffer: splitPiece.buffer, start: pieceOffset, length: splitPiece.length - pieceOffset}
 
 	// update
 	p.pieces = slices.Replace(p.pieces, pieceIndex, pieceIndex+1, beforePiece, newPiece, afterPiece)
+	return nil
 }
 
-// pieceIndex takes an offset and returns the index in the pieces slice that includes that offset.
-func (p *PieceTable) pieceIndex(offset int) (int, int) {
+// pieceIndex takes an offset and return the index in the pieces slice that include that offset.
+// The content offset within that piece is also returned. If an offset greater than total content
+// is given return an error.
+func (p *PieceTable) pieceIndex(offset int) (int, int, error) {
 	acc := 0
 
 	for i, piece := range p.pieces {
 		if offset > acc && offset < acc+piece.length {
-			return i, offset - acc
+			return i, offset - acc, nil
 		}
 
 		acc += piece.length
 	}
 
-	// this shouldn't be reached.
-	return -1, -1
+	return 0, 0, fmt.Errorf("Invalid offset for insertion: %d", offset)
 }
