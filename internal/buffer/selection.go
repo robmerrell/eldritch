@@ -8,21 +8,19 @@ package buffer
 // The anchor and head having the same coordinates is a valid state. This is called collapsed
 // and this causes the selection to act more like a traditional cursor.
 type Selection struct {
-	AnchorCol int
-	AnchorRow int
+	AnchorOffset int
+	HeadOffset   int
 
-	HeadCol int
-	HeadRow int
-
-	// when moving horizontally set this so we can use it when moving vertically
-	PreferredLineOffset int
+	// set the column when moving horizontally so we can preserve it when moving vertically.
+	PreferredCol int
 }
 
 // NewSelection creates a new selection at the given anchor and head.
-func NewSelection(headRow, headCol, anchorRow, anchorCol int) *Selection {
-	return &Selection{HeadRow: headRow, HeadCol: headCol, AnchorRow: anchorRow, AnchorCol: anchorCol, PreferredLineOffset: headCol}
+func NewSelection(headOffset, anchorOffset, preferredCol int) *Selection {
+	return &Selection{HeadOffset: headOffset, AnchorOffset: anchorOffset, PreferredCol: preferredCol}
 }
 
+/*
 // SetCollapsed sets a collapsed position
 func (s *Selection) SetCollapsed(row, col int) {
 	s.HeadRow = row
@@ -31,17 +29,25 @@ func (s *Selection) SetCollapsed(row, col int) {
 	s.AnchorCol = col
 	s.PreferredLineOffset = col
 }
+*/
 
 // SwapPositions swaps the anchor and the head
 func (s *Selection) SwapPositions() {
-	s.AnchorRow, s.HeadRow = s.HeadRow, s.AnchorRow
-	s.AnchorCol, s.HeadCol = s.HeadCol, s.AnchorCol
+	s.AnchorOffset = s.HeadOffset
+	s.PreferredCol = s.HeadOffset
 }
 
 // IsCollapsed returns if the selection is collapsed or not.
 func (s *Selection) IsCollapsed() bool {
-	return s.AnchorRow == s.HeadRow && s.AnchorCol == s.HeadCol
+	return s.AnchorOffset == s.HeadOffset
 }
+
+// Collapse collapses anchor and head together.
+func (s *Selection) Collapse() {
+	s.AnchorOffset = s.HeadOffset
+}
+
+/*
 
 // PointInSelections returns true if a point is between the anchor and head (inclusive)
 func (s *Selection) PointSelected(row, col int) bool {
@@ -71,3 +77,4 @@ func (s *Selection) PointSelected(row, col int) bool {
 
 	return row > startRow && row < endRow
 }
+*/

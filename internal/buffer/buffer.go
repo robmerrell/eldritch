@@ -23,33 +23,21 @@ package buffer
 //             S
 
 import (
-	"bufio"
-	"cmp"
 	"errors"
 	"log"
 	"os"
 	"slices"
-	"strings"
+
+	"github.com/robmerrell/eldritch/internal/piece"
 )
 
 // errors
 var ErrNotFileBackedBuffer = errors.New("Not a file backed buffer")
 
-// Default number of lines and runes per line to preallocate empty buffers
-const DefaultLineCap = 256
-const DefaultRuneCap = 256
-
-// line holds line contents and the length. All lines end with a newline.
-type line struct {
-	runes  []rune
-	length int
-}
-
 // Buffer is the backing structure for an editable document. Similar to Kakoune and Helix
 // buffers can have multiple selections active at one time.
 type Buffer struct {
-	// just a slice of lines for now. We'll optimize this later.
-	contents []line
+	Contents *piece.PieceTable
 
 	// the file backing the buffer, if backed by a file.
 	backingFile *string
@@ -62,17 +50,15 @@ type Buffer struct {
 
 	// selections are like cursors. Similar to Kakoune and Helix all cursors
 	// are selections. Even selections of 1.
-	selections       []*Selection
-	primarySelection *Selection
+	selections []*Selection
 }
 
 // NewBuffer creates a new buffer with default options.
 func NewBuffer() *Buffer {
 	b := &Buffer{
-		selections: []*Selection{NewSelection(0, 0, 0, 0)},
+		selections: []*Selection{NewSelection(0, 0, 0)},
 	}
-	b.primarySelection = b.selections[0]
-	b.Clear()
+	b.Contents = piece.FromSlice([]rune(""))
 
 	return b
 }
@@ -85,12 +71,6 @@ func NewBufferWithFile(filePath string) (*Buffer, error) {
 	return buffer, err
 }
 
-// Clear clears the buffer input by reallocating the content container.
-func (b *Buffer) Clear() {
-	b.contents = make([]line, 1, DefaultLineCap)
-	b.contents[0] = newLine([]rune(""))
-}
-
 // AssignName gives the buffer a name
 func (b *Buffer) AssignName(name string) {
 	b.name = &name
@@ -99,115 +79,57 @@ func (b *Buffer) AssignName(name string) {
 // LogSelections is a temporary debug helper
 func (b *Buffer) LogSelections() {
 	for i, sel := range b.selections {
-		log.Printf("%d -- row: %d, col: %d", i, sel.HeadRow, sel.HeadCol)
+		coords := b.Contents.OffsetToCoords(sel.HeadOffset)
+		log.Printf("%d -- head: %d, anchor: %d, row: %d, col: %d", i, sel.HeadOffset, sel.AnchorOffset, coords.Row, coords.Col)
 	}
 }
 
 // Insert inserts a rune at all selection positions. Characters are inserted before the selection.
-func (b *Buffer) Insert(input rune) {
+func (b *Buffer) Insert(input []rune) {
 	for _, selection := range b.selections {
-		line := &b.contents[selection.HeadRow]
-
-		if line.length == selection.HeadCol {
-			// at the end of the line, so append
-			line.runes = append(line.runes, input)
-		} else if line.length > selection.HeadCol {
-			// Something already exists there, so insert it
-			line.runes = slices.Insert(line.runes, selection.HeadCol, input)
+		err := b.Contents.Insert(selection.HeadOffset, input)
+		if err != nil {
+			log.Println(err)
+			continue
 		}
 
-		line.length += 1
-		b.ShiftSelectionsForward(1, selection.IsCollapsed())
+		b.ShiftSelectionsForward(len(input), selection.IsCollapsed())
 	}
 }
 
-// InsertNewLine creates a new line at each selection head.
-func (b *Buffer) InsertNewLine() {
-	for _, selection := range b.selections {
-		currentLine := b.contents[selection.HeadRow]
-
-		// split the current line at head and put everything following it into a new line.
-		before := currentLine.runes[:selection.HeadCol]
-		after := currentLine.runes[selection.HeadCol:]
-		b.contents[selection.HeadRow] = newLine(before)
-
-		b.contents = slices.Insert(b.contents, selection.HeadRow+1, newLine(after))
-		selection.PreferredLineOffset = 0
-		b.ShiftSelectionsDown(1, selection.IsCollapsed())
-	}
-}
-
-// Delete delets the characters contained in each selection. This is ineffecient, so I'll need
-// to come back to this later.
+// Delete delets the characters contained in each selection.
 func (b *Buffer) Delete() {
 	for _, selection := range b.selections {
-		startRow := min(selection.HeadRow, selection.AnchorRow)
-		startCol := min(selection.HeadCol, selection.AnchorCol)
-		endRow := max(selection.HeadRow, selection.AnchorRow)
-		endCol := max(selection.HeadCol, selection.AnchorCol)
+		start := min(selection.HeadOffset, selection.AnchorOffset)
+		end := max(selection.HeadOffset, selection.AnchorOffset)
 
-		// only a single row is in the selection
-		if startRow == endRow {
-			// the entire row is selected
-			if startCol == 0 && endCol == (b.contents[startRow].length-1) {
-				b.contents = slices.Delete(b.contents, startRow, startRow+1)
-				selection.SetCollapsed(selection.AnchorRow, selection.AnchorCol)
-				return
-			}
-
-			// delete runes and recalculate
-			b.contents[startRow].runes = slices.Delete(b.contents[startRow].runes, startCol, endCol+1)
-			b.contents[startRow].length = len(b.contents[startRow].runes)
-			selection.SetCollapsed(selection.AnchorRow, selection.AnchorCol)
-			return
+		err := b.Contents.Delete(start, end)
+		if err != nil {
+			log.Println(err)
 		}
 
-		for row := startRow; row < endRow; row++ {
-			// first row selected
-			if row == startRow {
-				b.contents[row].runes = slices.Delete(b.contents[row].runes, startCol, b.contents[row].length)
-				b.contents[row].length = len(b.contents[row].runes)
-
-				continue
-			}
-
-			// last row selected
-			if row == endRow {
-				b.contents[row].runes = slices.Delete(b.contents[row].runes, 0, endCol+1)
-				b.contents[row].length = len(b.contents[row].runes)
-
-				continue
-			}
-
-			// the entire row is selected because it is between the first and last
-			b.contents = slices.Delete(b.contents, startRow, endRow+1)
-		}
-
-		selection.SetCollapsed(selection.AnchorRow, selection.AnchorCol)
+		b.ShiftSelectionsBackward(end-start, true)
 	}
 }
 
 // SetContents replaces current contents with the given input.
 func (b *Buffer) SetContents(contents string) {
-	split := strings.SplitAfter(contents, "\n")
-	b.contents = make([]line, len(split))
-
-	for i, strLine := range split {
-		b.contents[i] = newLine([]rune(strLine))
-	}
+	b.Contents = piece.FromSlice([]rune(contents))
 }
 
-// OffsetAttribute returns a single attribute for the given rune offset. I suspect this will go
-// away once I need to render diagnostics.
-func (b *Buffer) OffsetAttribute(row, col int) string {
+// OffsetAttribute returns a single attribute for the given rune offset. I dislike this and want
+// it to go away, but it's helpful for now.
+func (b *Buffer) OffsetAttribute(offset int) string {
 	for _, selection := range b.selections {
 		// head
-		if selection.HeadRow == row && selection.HeadCol == col {
+		if selection.HeadOffset == offset {
 			return "selection_head"
 		}
 
 		// tail
-		if selection.PointSelected(row, col) {
+		start := min(selection.AnchorOffset, selection.HeadOffset)
+		end := max(selection.AnchorOffset, selection.HeadOffset)
+		if offset >= start && offset <= end {
 			return "selection_tail"
 		}
 	}
@@ -217,6 +139,7 @@ func (b *Buffer) OffsetAttribute(row, col int) string {
 
 // AddOpenSelection adds a new open selection at the given location. Returns a reference
 // to the new selection.
+/*
 func (b *Buffer) AddOpenSelection(headRow, headCol, anchorRow, anchorCol int) *Selection {
 	selection := NewSelection(headRow, headCol, anchorRow, anchorCol)
 	b.selections = append(b.selections, selection)
@@ -245,41 +168,20 @@ func (b *Buffer) sortSelections() {
 		)
 	})
 }
+*/
 
 // ShiftSelectionsForward shifts the selections "count" spaces forward. If collapsed is true then
 // also move the anchor.
 func (b *Buffer) ShiftSelectionsForward(count int, collapse bool) {
 	for _, selection := range b.selections {
-		// find the row the shift will move to and then move any leftover columns
-		updatedRow := selection.HeadRow
-		updatedCol := selection.HeadCol
-		runesLeft := count
+		target := min(b.Contents.Len()-1, selection.HeadOffset+count)
+		selection.HeadOffset = target
 
-		// advance until we run out of runes
-		for runesLeft > 0 {
-			line := b.contents[updatedRow]
-
-			// end of a line
-			if updatedCol == line.length-1 {
-				// only shift the selection if we're not at the end of the document; move down a line
-				if updatedRow < len(b.contents)-1 {
-					updatedRow += 1
-					updatedCol = 0
-				}
-			} else {
-				updatedCol += 1
-			}
-
-			runesLeft -= 1
-		}
-
-		selection.HeadRow = updatedRow
-		selection.HeadCol = updatedCol
-		selection.PreferredLineOffset = updatedCol
+		coords := b.Contents.OffsetToCoords(target)
+		selection.PreferredCol = coords.Col
 
 		if collapse {
-			selection.AnchorCol = selection.HeadCol
-			selection.AnchorRow = selection.HeadRow
+			selection.AnchorOffset = target
 		}
 	}
 }
@@ -288,36 +190,14 @@ func (b *Buffer) ShiftSelectionsForward(count int, collapse bool) {
 // also move the anchor.
 func (b *Buffer) ShiftSelectionsBackward(count int, collapse bool) {
 	for _, selection := range b.selections {
-		// find the row the shift will move to and then move any leftover columns
-		updatedRow := selection.HeadRow
-		updatedCol := selection.HeadCol
-		runesLeft := count
+		target := max(0, selection.HeadOffset-count)
+		selection.HeadOffset = target
 
-		// advance until we run out of runes
-		for runesLeft > 0 {
-
-			// beginning of a line
-			if updatedCol == 0 {
-				// only shift the selection if we're not at the begging of the document; move up a line
-				if updatedRow > 0 {
-					updatedRow -= 1
-					line := b.contents[updatedRow]
-					updatedCol = line.length - 1
-				}
-			} else {
-				updatedCol -= 1
-			}
-
-			runesLeft -= 1
-		}
-
-		selection.HeadRow = updatedRow
-		selection.HeadCol = updatedCol
-		selection.PreferredLineOffset = updatedCol
+		coords := b.Contents.OffsetToCoords(target)
+		selection.PreferredCol = coords.Col
 
 		if collapse {
-			selection.AnchorCol = selection.HeadCol
-			selection.AnchorRow = selection.HeadRow
+			selection.AnchorOffset = target
 		}
 	}
 }
@@ -326,14 +206,23 @@ func (b *Buffer) ShiftSelectionsBackward(count int, collapse bool) {
 // also move the anchor.
 func (b *Buffer) ShiftSelectionsDown(count int, collapse bool) {
 	for _, selection := range b.selections {
-		targetLine := min(len(b.contents)-1, selection.HeadRow+count)
+		coords := b.Contents.OffsetToCoords(selection.HeadOffset)
+		targetRow := min(coords.Row+count, b.Contents.LineCount()-1)
 
-		selection.HeadRow = targetLine
-		selection.HeadCol = min(selection.PreferredLineOffset, b.contents[targetLine].length-1)
+		// get the furthest line we can jump to with the given count
+		line := slices.Collect(b.Contents.Lines(targetRow, targetRow))[0]
 
+		// get the length and find the right column to use
+		targetCol := min(selection.PreferredCol, len(line.Runes)-1)
+
+		// convert the new line coords with the pref column to an offset
+		coords.Row = targetRow
+		coords.Col = targetCol
+		offset := b.Contents.CoordsToOffset(coords)
+
+		selection.HeadOffset = offset
 		if collapse {
-			selection.AnchorCol = selection.HeadCol
-			selection.AnchorRow = selection.HeadRow
+			selection.AnchorOffset = offset
 		}
 	}
 }
@@ -342,14 +231,23 @@ func (b *Buffer) ShiftSelectionsDown(count int, collapse bool) {
 // also move the anchor.
 func (b *Buffer) ShiftSelectionsUp(count int, collapse bool) {
 	for _, selection := range b.selections {
-		targetLine := max(0, selection.HeadRow-count)
+		coords := b.Contents.OffsetToCoords(selection.HeadOffset)
+		targetRow := max(coords.Row-count, 0)
 
-		selection.HeadRow = targetLine
-		selection.HeadCol = min(selection.PreferredLineOffset, b.contents[targetLine].length-1)
+		// get the furthest line we can jump to with the given count
+		line := slices.Collect(b.Contents.Lines(targetRow, targetRow))[0]
 
+		// get the length and find the right column to use
+		targetCol := min(selection.PreferredCol, len(line.Runes)-1)
+
+		// convert the new line coords with the pref column to an offset
+		coords.Row = targetRow
+		coords.Col = targetCol
+		offset := b.Contents.CoordsToOffset(coords)
+
+		selection.HeadOffset = offset
 		if collapse {
-			selection.AnchorCol = selection.HeadCol
-			selection.AnchorRow = selection.HeadRow
+			selection.AnchorOffset = offset
 		}
 	}
 }
@@ -357,30 +255,14 @@ func (b *Buffer) ShiftSelectionsUp(count int, collapse bool) {
 // SelectLine anchors to the beginning of the line and moves the head to the end.
 func (b *Buffer) SelectLine() {
 	for _, selection := range b.selections {
-		lineNum := max(0, selection.HeadRow)
+		coords := b.Contents.OffsetToCoords(selection.HeadOffset)
+		line := slices.Collect(b.Contents.Lines(coords.Row, coords.Row))[0]
+		selectLength := len(line.Runes) - 1
 
-		selection.AnchorCol = 0
-		selection.HeadCol = b.contents[lineNum].length - 1
-		selection.PreferredLineOffset = selection.HeadCol
+		selection.AnchorOffset = b.Contents.CoordsToOffset(piece.Coords{Row: coords.Row, Col: 0})
+		selection.HeadOffset = b.Contents.CoordsToOffset(piece.Coords{Row: coords.Row, Col: selectLength})
+		selection.PreferredCol = selectLength
 	}
-}
-
-// ContentsForRendering returns a portion of the buffer suitable for rendering. This startLine is
-// the first line to render and the maxLine is the last possible line to render. Possible because
-// the viewport might be able to render 25 lines, but the buffer only has 5. So just the 5 are returned.
-func (b *Buffer) ContentsForRendering(startLine, maxLine int) [][]rune {
-	lineCount := len(b.contents)
-	latestLine := min(maxLine, lineCount)
-
-	lineContents := make([][]rune, latestLine-startLine)
-	for i := startLine; i < latestLine; i++ {
-		rns := slices.Clone(b.contents[i].runes)
-		// render a \n with a space. TODO: This is dumb and needs to be redone.
-		rns = append(rns[:len(rns)-1], ' ', '\n')
-		lineContents[i-startLine] = rns
-	}
-
-	return lineContents
 }
 
 // Selections returns all selections active in the buffer
@@ -390,32 +272,12 @@ func (b *Buffer) Selections() []*Selection {
 
 // LoadFile loads a file into the buffer
 func (b *Buffer) LoadFile(filePath string) error {
-	file, err := os.Open(filePath)
+	bytes, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
 
 	b.backingFile = &filePath
-	b.contents = make([]line, 0)
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lineRunes := []rune(scanner.Text())
-		b.contents = append(b.contents, newLine(lineRunes))
-	}
-
+	b.Contents = piece.FromSlice([]rune(string(bytes)))
 	return nil
-}
-
-// newLine creates an empty newline with the required line ending
-func newLine(inputRunes []rune) line {
-	lineRunes := slices.Clone(inputRunes)
-
-	// make sure it ends with a newline
-	if len(lineRunes) == 0 || lineRunes[len(lineRunes)-1] != '\n' {
-		lineRunes = append(lineRunes, []rune("\n")...)
-	}
-
-	return line{runes: lineRunes, length: len(lineRunes)}
 }

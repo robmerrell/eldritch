@@ -50,20 +50,24 @@ func (b *BufferView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				b.buffer.ShiftSelectionsForward(1, true)
 			case "L":
 				b.buffer.ShiftSelectionsForward(1, false)
-			case "w":
-				b.buffer.ShiftSelectionsForward(3, true)
 			case "x":
 				b.buffer.SelectLine()
+			case "w":
+				b.buffer.Insert([]rune("It's a dangerous\n"))
+				b.buffer.Insert([]rune("business, Frodo,\n"))
+				b.buffer.Insert([]rune("going out your door\n"))
 			}
 		} else if msg.Mode == state.InputModeInsert {
 			switch msg.PressMsg.String() {
 			case "enter":
-				b.buffer.InsertNewLine()
+				b.buffer.Insert([]rune("\n"))
 
 			case "backspace":
 
 			default:
-				b.buffer.Insert([]rune(msg.PressMsg.String())[0])
+				if msg.PressMsg.Text != "" {
+					b.buffer.Insert([]rune(msg.PressMsg.Text))
+				}
 			}
 		}
 	}
@@ -102,7 +106,6 @@ func (b *BufferView) View() tea.View {
 
 	var contents strings.Builder
 	var lineNums strings.Builder
-	renderableContents := b.buffer.ContentsForRendering(startLine, startLine+contentHeight)
 
 	defaultStyle := lipgloss.NewStyle().
 		Foreground(b.theme.Fg).
@@ -115,24 +118,35 @@ func (b *BufferView) View() tea.View {
 	selectionTailStyle := lipgloss.NewStyle().
 		Background(b.theme.SelectionTailBg).Render
 
-	for i, line := range renderableContents {
-		var strLine string
+	for line := range b.buffer.Contents.Lines(startLine, startLine+contentHeight) {
+		var strLine strings.Builder
 
-		for j, rn := range line {
-			switch b.buffer.OffsetAttribute(i, j) {
+		for i, rn := range line.Runes {
+			// render a space with newlines so we can show selection
+			switch b.buffer.OffsetAttribute(line.StartOffset + i) {
 			case "selection_tail":
-				strLine += selectionTailStyle(string(rn))
+				if rn == '\n' {
+					strLine.WriteString(selectionTailStyle(" "))
+					strLine.WriteString(defaultStyle("\n"))
+				} else {
+					strLine.WriteString(selectionTailStyle(string(rn)))
+				}
 
 			case "selection_head":
-				strLine += selectionHeadStyle(string(rn))
+				if rn == '\n' {
+					strLine.WriteString(selectionHeadStyle(" "))
+					strLine.WriteString(defaultStyle("\n"))
+				} else {
+					strLine.WriteString(selectionHeadStyle(string(rn)))
+				}
 
 			default:
-				strLine += defaultStyle(string(rn))
+				strLine.WriteString(defaultStyle(string(rn)))
 			}
 		}
 
 		lineWriter := wrap.NewWriter(contentWidth)
-		lineWriter.Write([]byte(strLine))
+		lineWriter.Write([]byte(strLine.String()))
 
 		contents.WriteString(lineWriter.String())
 	}

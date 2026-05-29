@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	fileName := "./README.md"
+	fileName := "./main.go"
 	eldApp, err := app.Init(&fileName)
 	if err != nil {
 		fmt.Println("fatal:", err)

@@ -9,8 +9,10 @@
 package piece
 
 import (
+	"encoding/json"
 	"fmt"
 	"iter"
+	"os"
 	"slices"
 )
 
@@ -46,6 +48,40 @@ type PieceTable struct {
 	original []rune
 	add      []rune
 	pieces   []*piece
+}
+
+// WriteJSON writes the piece table out to JSON. Helpful for snapshotting things for writing
+// tests and debugging.
+func (pt *PieceTable) writeJSON(path string) error {
+	type pieceOut struct {
+		Buffer string `json:"buffer"`
+		Start  int    `json:"start"`
+		Length int    `json:"length"`
+	}
+	out := struct {
+		Original string     `json:"original"`
+		Add      string     `json:"add"`
+		Pieces   []pieceOut `json:"pieces"`
+	}{Original: string(pt.original), Add: string(pt.add)}
+
+	for _, p := range pt.pieces {
+		buf := "original"
+		if p.buffer == bufferTypeAdd {
+			buf = "add"
+		}
+		out.Pieces = append(out.Pieces, pieceOut{buf, p.start, p.length})
+	}
+
+	b, err := json.MarshalIndent(out, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 // FromSlice create a new piece table using the given input as the original buffer. It ensures that
@@ -86,21 +122,29 @@ func (p *PieceTable) pieceContents(piece *piece) []rune {
 	return p.add[piece.start : piece.start+piece.length]
 }
 
+type Line struct {
+	Runes       []rune
+	StartOffset int
+}
+
 // Lines is a generator that produces lines (index is 0 based).
-func (p *PieceTable) Lines(lineStart, lineEnd int) iter.Seq[[]rune] {
-	return func(yield func([]rune) bool) {
+func (p *PieceTable) Lines(lineStart, lineEnd int) iter.Seq[*Line] {
+	return func(yield func(*Line) bool) {
 		lineCount := 0
+		offset := 0
 
 		line := make([]rune, 0, defaultLineSize)
 		for _, piece := range p.pieces {
 			for _, rn := range p.pieceContents(piece) {
+				offset += 1
+
 				if lineCount >= lineStart && lineCount <= lineEnd {
 					line = append(line, rn)
 				}
 
 				if rn == '\n' {
 					if lineCount >= lineStart && lineCount <= lineEnd {
-						if !yield(line) {
+						if !yield(&Line{Runes: line, StartOffset: offset - len(line)}) {
 							return
 						}
 						line = make([]rune, 0, defaultLineSize)
@@ -124,18 +168,65 @@ func (p *PieceTable) Len() int {
 	return count
 }
 
-// func (p *PieceTable) LineToOffset(line int) int {
+// LineCount returns the number of lines in the document.
+func (p *PieceTable) LineCount() int {
+	lineCount := 0
 
-// }
+	for _, piece := range p.pieces {
+		for _, rn := range p.pieceContents(piece) {
+			if rn == '\n' {
+				lineCount += 1
+			}
+		}
+	}
 
-// func (p *PieceTable) OffsetToLine(offset int) int {
+	return lineCount
+}
 
-// }
+// Coords is used to represent x,y coordinate pairs in the contents.
+type Coords struct {
+	Row int
+	Col int
+}
+
+// CoordsToOffset converts coordinates to the offset in the document. Crashes on invalid coordinates. I
+// think this function should fail very noisly since the knock-on effect could be really bad.
+func (p *PieceTable) CoordsToOffset(coords Coords) int {
+	// should only ever be one line
+	line := slices.Collect(p.Lines(coords.Row, coords.Row))[0]
+	return line.StartOffset + coords.Col
+}
+
+// OffsetToCoords converts an offset to coordinates.
+func (p *PieceTable) OffsetToCoords(offset int) Coords {
+	lineCount := 0
+	offsetAcc := 0 // rolling offset count for comparison
+	col := 0
+
+	for _, piece := range p.pieces {
+		for _, rn := range p.pieceContents(piece) {
+			if offsetAcc == offset {
+				return Coords{Row: lineCount, Col: col}
+			}
+
+			if rn == '\n' {
+				lineCount += 1
+				col = 0
+			} else {
+				col += 1
+			}
+
+			offsetAcc += 1
+		}
+	}
+
+	return Coords{Row: lineCount, Col: col}
+}
 
 // Insert inserts a new slice of runes into the piece table. This is a good comment.
 func (p *PieceTable) Insert(offset int, input []rune) error {
 	if offset < 0 {
-		return fmt.Errorf("Invalid offset for insertion: %d", offset)
+		return fmt.Errorf("Invalid negative offset: %d", offset)
 	}
 
 	addOffset := len(p.add)
@@ -148,7 +239,7 @@ func (p *PieceTable) Insert(offset int, input []rune) error {
 		return nil
 	}
 
-	// find the piece that we want that needs to be split
+	// find the piece that needs to be split
 	pieceIndex, pieceOffset, err := p.pieceIndex(offset)
 	if err != nil {
 		return err
@@ -158,10 +249,108 @@ func (p *PieceTable) Insert(offset int, input []rune) error {
 	splitPiece := p.pieces[pieceIndex]
 	beforePiece := &piece{buffer: splitPiece.buffer, start: splitPiece.start, length: pieceOffset}
 	newPiece := &piece{buffer: bufferTypeAdd, start: addOffset, length: len(input)}
-	afterPiece := &piece{buffer: splitPiece.buffer, start: pieceOffset, length: splitPiece.length - pieceOffset}
+	afterPiece := &piece{buffer: splitPiece.buffer, start: splitPiece.start + pieceOffset, length: splitPiece.length - pieceOffset}
 
-	// update
-	p.pieces = slices.Replace(p.pieces, pieceIndex, pieceIndex+1, beforePiece, newPiece, afterPiece)
+	splicePieces := []*piece{beforePiece, newPiece}
+	if afterPiece.length > 0 {
+		splicePieces = append(splicePieces, afterPiece)
+	}
+
+	p.pieces = slices.Replace(p.pieces, pieceIndex, pieceIndex+1, splicePieces...)
+	p.writeJSON("/tmp/out.json")
+	return nil
+}
+
+// Delete deletes from the pieace table between start and end offsets inclusive.
+func (p *PieceTable) Delete(start, end int) error {
+	// collect pieces for deleting
+	acc := 0
+
+	// track what indecies to delete we start with -1 because we use it as a check to make sure we
+	// have set the deleteFrom on the first pass through.
+	deleteFrom := -1
+	deleteTo := -1
+
+	// the piece that needs to be added and its offset after we're done ranging
+	var pieceToAdd *piece
+	addOffset := -1
+
+	// I need access to the piece struct inside of the loop. Gross.
+	for i, bufferPiece := range p.pieces {
+		nextAcc := acc + bufferPiece.length
+
+		// determine if the piece is affected by the deletion.
+		deleteInPiece := rangesOverlap(acc, nextAcc-1, start, end)
+		deleteFirstRune := acc >= start && acc <= end
+		deleteLastRune := nextAcc-1 >= start && nextAcc-1 <= end
+
+		if deleteInPiece {
+			// splitting pieces and deleting pieces can't happen in the same operation
+
+			// split the piece
+			// piece1*piece2*piece3
+			//         ^ ^
+			// piece 2 needs to be split into 2
+			if !deleteFirstRune && !deleteLastRune {
+				// modify the piece to the right and create a new piece to the left
+				pieceToAdd = &piece{buffer: bufferPiece.buffer, start: bufferPiece.start, length: start - acc}
+				addOffset = i
+
+				diff := end - acc + 1
+				bufferPiece.start += diff
+				bufferPiece.length -= diff
+			} else {
+				// delete the entire piece
+				// piece1*piece2*piece3
+				//     ^          ^
+				// all of piece 2 would need to be deleted
+				if deleteFirstRune && deleteLastRune {
+					if deleteFrom == -1 {
+						deleteFrom = i
+					}
+
+					deleteTo = i
+				}
+
+				// trim from the end of the piece
+				// piece1*piece2*piece3
+				//         ^   ^
+				// the end of piece 2 would need to be deleted
+				if !deleteFirstRune && deleteLastRune {
+					bufferPiece.length = start - acc
+				}
+
+				// trim from the beginning of the piece
+				// piece1*piece2*piece3
+				//        ^  ^
+				// the beginning of piece 2 would need to be deleted
+				if deleteFirstRune && !deleteLastRune {
+					diff := end - acc + 1
+					bufferPiece.start += diff
+					bufferPiece.length -= diff
+				}
+			}
+		}
+
+		acc = nextAcc
+
+		// finished with piece ranges
+		if end < acc {
+			break
+		}
+	}
+
+	// remove the deleted pieces
+	if deleteFrom != -1 {
+		p.pieces = append(p.pieces[:deleteFrom], p.pieces[deleteTo+1:]...)
+	}
+
+	// insert the split piece
+	if pieceToAdd != nil {
+		p.pieces = slices.Insert(p.pieces, addOffset, pieceToAdd)
+	}
+
+	p.writeJSON("/tmp/out.json")
 	return nil
 }
 
@@ -172,7 +361,7 @@ func (p *PieceTable) pieceIndex(offset int) (int, int, error) {
 	acc := 0
 
 	for i, piece := range p.pieces {
-		if offset > acc && offset < acc+piece.length {
+		if offset > acc && offset <= acc+piece.length {
 			return i, offset - acc, nil
 		}
 
@@ -180,4 +369,9 @@ func (p *PieceTable) pieceIndex(offset int) (int, int, error) {
 	}
 
 	return 0, 0, fmt.Errorf("Invalid offset for insertion: %d", offset)
+}
+
+// rangesOverlap tests if there is any overlap between the two given ranges.
+func rangesOverlap(x1, x2, y1, y2 int) bool {
+	return max(x1, y1) <= min(x2, y2)
 }
