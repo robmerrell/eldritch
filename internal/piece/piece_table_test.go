@@ -1,7 +1,6 @@
 package piece
 
 import (
-	"fmt"
 	"slices"
 	"testing"
 
@@ -81,6 +80,15 @@ func TestInsert(t *testing.T) {
 		{bufferTypeAdd, 2, 1},
 		{bufferTypeOriginal, 2, 4},
 	}, pt.pieces)
+
+	// continues inserting on a piece
+	pt = FromSlice([]rune("\n"))
+	assert.NoError(t, pt.Insert(0, []rune("0")))
+	assert.NoError(t, pt.Insert(1, []rune("x")))
+	assert.Equal(t, []*piece{
+		{bufferTypeAdd, 0, 2},
+		{bufferTypeOriginal, 0, 1},
+	}, pt.pieces)
 }
 
 func TestInsertDocBoundaries(t *testing.T) {
@@ -123,10 +131,10 @@ func TestInsertInvalidOffsets(t *testing.T) {
 func TestDelete(t *testing.T) {
 	table := func() *PieceTable {
 		pt := FromSlice([]rune(""))
-		pt.Insert(0, []rune("Line 1\n"))
-		pt.Insert(7, []rune("Line 2\n"))
-		pt.Insert(14, []rune("Line 3\n"))
-		pt.Insert(21, []rune("Line 4\n"))
+		pt.insert(0, []rune("Line 1\n"), true)
+		pt.insert(7, []rune("Line 2\n"), true)
+		pt.insert(14, []rune("Line 3\n"), true)
+		pt.insert(21, []rune("Line 4\n"), true)
 
 		return pt
 	}
@@ -134,7 +142,6 @@ func TestDelete(t *testing.T) {
 	// trim the beginning of a piece
 	pt := table()
 	assert.NoError(t, pt.Delete(0, 3))
-	fmt.Println(string(pt.Contents()))
 	assert.Equal(t, []*piece{
 		{bufferTypeAdd, 4, 3},
 		{bufferTypeAdd, 7, 7},
@@ -146,7 +153,6 @@ func TestDelete(t *testing.T) {
 	// trim end of a piece
 	pt = table()
 	assert.NoError(t, pt.Delete(2, 6))
-	fmt.Println(string(pt.Contents()))
 	assert.Equal(t, []*piece{
 		{bufferTypeAdd, 0, 2},
 		{bufferTypeAdd, 7, 7},
@@ -158,7 +164,6 @@ func TestDelete(t *testing.T) {
 	// delete an entire piece
 	pt = table()
 	assert.NoError(t, pt.Delete(7, 13))
-	fmt.Println(string(pt.Contents()))
 	assert.Equal(t, []*piece{
 		{bufferTypeAdd, 0, 7},
 		{bufferTypeAdd, 14, 7},
@@ -169,7 +174,6 @@ func TestDelete(t *testing.T) {
 	// delete the middle of a piece
 	pt = table()
 	assert.NoError(t, pt.Delete(1, 4))
-	fmt.Println(string(pt.Contents()))
 	assert.Equal(t, []*piece{
 		{bufferTypeAdd, 0, 1},
 		{bufferTypeAdd, 5, 2},
@@ -182,7 +186,6 @@ func TestDelete(t *testing.T) {
 	// delete in multiple pieces
 	pt = table()
 	assert.NoError(t, pt.Delete(3, 17))
-	fmt.Println(string(pt.Contents()))
 	assert.Equal(t, []*piece{
 		{bufferTypeAdd, 0, 3},
 		{bufferTypeAdd, 18, 3},

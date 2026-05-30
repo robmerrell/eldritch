@@ -225,6 +225,12 @@ func (p *PieceTable) OffsetToCoords(offset int) Coords {
 
 // Insert inserts a new slice of runes into the piece table. This is a good comment.
 func (p *PieceTable) Insert(offset int, input []rune) error {
+	return p.insert(offset, input, false)
+}
+
+// insert handles the insertion. Differs from the public function by allowing to force a new
+// piece that is helpful for tests.
+func (p *PieceTable) insert(offset int, input []rune, forceNewPiece bool) error {
 	if offset < 0 {
 		return fmt.Errorf("Invalid negative offset: %d", offset)
 	}
@@ -245,18 +251,24 @@ func (p *PieceTable) Insert(offset int, input []rune) error {
 		return err
 	}
 
-	// new pieces
-	splitPiece := p.pieces[pieceIndex]
-	beforePiece := &piece{buffer: splitPiece.buffer, start: splitPiece.start, length: pieceOffset}
-	newPiece := &piece{buffer: bufferTypeAdd, start: addOffset, length: len(input)}
-	afterPiece := &piece{buffer: splitPiece.buffer, start: splitPiece.start + pieceOffset, length: splitPiece.length - pieceOffset}
+	// keep inserting on the existing piece if possible
+	candidate := p.pieces[pieceIndex]
+	if candidate.buffer == bufferTypeAdd && candidate.length == pieceOffset && candidate.start+candidate.length == addOffset && !forceNewPiece {
+		candidate.length += len(input)
+	} else {
+		// new pieces
+		beforePiece := &piece{buffer: candidate.buffer, start: candidate.start, length: pieceOffset}
+		newPiece := &piece{buffer: bufferTypeAdd, start: addOffset, length: len(input)}
+		afterPiece := &piece{buffer: candidate.buffer, start: candidate.start + pieceOffset, length: candidate.length - pieceOffset}
 
-	splicePieces := []*piece{beforePiece, newPiece}
-	if afterPiece.length > 0 {
-		splicePieces = append(splicePieces, afterPiece)
+		splicePieces := []*piece{beforePiece, newPiece}
+		if afterPiece.length > 0 {
+			splicePieces = append(splicePieces, afterPiece)
+		}
+
+		p.pieces = slices.Replace(p.pieces, pieceIndex, pieceIndex+1, splicePieces...)
 	}
 
-	p.pieces = slices.Replace(p.pieces, pieceIndex, pieceIndex+1, splicePieces...)
 	p.writeJSON("/tmp/out.json")
 	return nil
 }
