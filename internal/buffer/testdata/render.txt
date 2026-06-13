@@ -1,5 +1,0 @@
-This is a file used to test the renderer.
-We want to
-make sure that it can
-handle showing partial content, wrapping lines, etc.
-
