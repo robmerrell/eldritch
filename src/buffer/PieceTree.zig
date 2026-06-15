@@ -61,8 +61,14 @@ prng: std.Random.Xoshiro256,
 /// from the tree.
 original_buffer: std.ArrayList(u8),
 
+/// All offsets of line starts in the original buffer.
+original_line_starts: std.ArrayList(usize),
+
 /// Append only buffer that holds all additions.
 add_buffer: std.ArrayList(u8),
+
+/// All offsets of line starts in the add buffer.
+add_line_starts: std.ArrayList(usize),
 
 /// initialize the Piece Tree.
 ///
@@ -71,16 +77,37 @@ pub fn init(alloc: std.mem.Allocator, prng: std.Random.Xoshiro256, initial_conte
     var original_buffer: std.ArrayList(u8) = .empty;
     try original_buffer.appendSlice(alloc, initial_contents);
 
+    // find the line starts
+    var original_line_starts: std.ArrayList(usize) = .empty;
+    try original_line_starts.append(alloc, 0);
+    for (initial_contents, 0..) |byte, i| {
+        if (byte == '\n') {
+            try original_line_starts.append(alloc, i + 1);
+        }
+    }
+
     const add_buffer: std.ArrayList(u8) = .empty;
+    var add_line_starts: std.ArrayList(usize) = .empty;
+    try add_line_starts.append(alloc, 0);
 
     const treap = try Treap.init(alloc, prng, initial_contents.len);
-    return .{ .alloc = alloc, .prng = prng, .add_buffer = add_buffer, .original_buffer = original_buffer, .pieces = treap };
+    return .{
+        .alloc = alloc,
+        .prng = prng,
+        .original_buffer = original_buffer,
+        .original_line_starts = original_line_starts,
+        .add_buffer = add_buffer,
+        .add_line_starts = add_line_starts,
+        .pieces = treap,
+    };
 }
 
 /// Deinit the Piece Tree. It will clear out the buffers and the pieces.
 pub fn deinit(self: *PieceTree) void {
     self.original_buffer.deinit(self.alloc);
+    self.original_line_starts.deinit(self.alloc);
     self.add_buffer.deinit(self.alloc);
+    self.add_line_starts.deinit(self.alloc);
     self.pieces.deinit();
 }
 
@@ -94,4 +121,15 @@ test "PieceTree init puts contents into original buffer and creates a tree for t
     try std.testing.expectEqualStrings("hello", p.original_buffer.items);
     try std.testing.expectEqual(5, p.pieces.root.len);
     try std.testing.expectEqual(0, p.pieces.root.start);
+}
+
+test "PieceTree init sets the correct line starts for the original buffer" {
+    const alloc = std.testing.allocator;
+    const prng = std.Random.DefaultPrng.init(0);
+
+    var p = try PieceTree.init(alloc, prng, "one\ntwo\nthree\n");
+    defer p.deinit();
+
+    try std.testing.expectEqualSlices(usize, &[_]usize{ 0, 4, 8, 14 }, p.original_line_starts.items);
+    try std.testing.expectEqualSlices(usize, &[_]usize{0}, p.add_line_starts.items);
 }
