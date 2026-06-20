@@ -3,7 +3,7 @@
 //! a list. I'm using a treap because I would rather punch myself in the face than
 //! implement a red-black tree.
 //!
-//! One thing to not in this file I refer to "buffer" frequently. This isn't a buffer in
+//! One thing to note in this file I refer to "buffer" frequently. This isn't a buffer in
 //! the sense of an editor. These are append-only buffers that store contents for the
 //! editor buffer.
 const PieceTree = @This();
@@ -15,13 +15,33 @@ const std = @import("std");
 /// add - Any modifications made to the original buffer go here.
 const BufferType = enum { original, add };
 
+/// Instead of storing just a start and length in the piece we want to
+/// store positions in the buffer. This lets us split pieces without needing
+/// to re-read the content.
+const BufferPos = struct {
+    line: usize,
+    column: usize,
+};
+
 /// A node in the piece tree.
 const PieceNode = struct {
     buffer_type: BufferType,
-    start: usize,
-    len: usize,
+    start: BufferPos,
+    end: BufferPos,
 
-    fn init() PieceNode {}
+    // piece-local length and newline counts
+    len: usize,
+    newline_count: usize,
+
+    // left subtree lengths and newline counts to make getting pieces by line
+    // and by offset fast.
+    left_subtree_len: usize,
+    left_subtree_newline_count: usize,
+
+    // make it a tree
+    left: ?*PieceNode = null,
+    right: ?*PieceNode = null,
+    parent: ?*PieceNode = null,
 };
 
 /// Main tree structure that holds all of the pieces.
@@ -71,7 +91,6 @@ add_buffer: std.ArrayList(u8),
 add_line_starts: std.ArrayList(usize),
 
 /// initialize the Piece Tree.
-///
 /// The original buffer is generated from the initial contents.
 pub fn init(alloc: std.mem.Allocator, prng: std.Random.Xoshiro256, initial_contents: []const u8) !PieceTree {
     var original_buffer: std.ArrayList(u8) = .empty;

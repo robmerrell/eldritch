@@ -1,11 +1,17 @@
 const std = @import("std");
-const Io = std.Io;
+const vaxis = @import("vaxis");
+const app = @import("tui/app.zig");
+const Cell = vaxis.Cell;
+const TextInput = vaxis.widgets.TextInput;
+const border = vaxis.widgets.border;
 
 pub fn main(init: std.process.Init) !void {
-    std.debug.print("hello", .{});
-    _ = init.arena.allocator();
-    // const _: std.mem.Allocator = init.arena.allocator();
-    // const io = init.io;
+    const io = init.io;
+    const alloc = init.gpa;
+
+    var eldApp = try app.init(io, alloc, init.environ_map);
+    try eldApp.run();
+    defer eldApp.deinit();
 }
 
 // I don't think I need this forever, but handy for now I think...I'm probably doing something wrong.
