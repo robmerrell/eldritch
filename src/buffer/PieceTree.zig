@@ -10,6 +10,12 @@ const PieceTree = @This();
 
 const std = @import("std");
 
+const PieceTreeError = error{
+    ContentMissing,
+    DuplicateStart,
+    OutOfMemory,
+};
+
 /// Piece tables have an "original" buffer and an "add" buffer.
 /// original - The entire text on first load goes here.
 /// add - Any modifications made to the original buffer go here.
@@ -18,30 +24,30 @@ const BufferType = enum { original, add };
 /// Instead of storing just a start and length in the piece we want to
 /// store positions in the buffer. This lets us split pieces without needing
 /// to re-read the content.
-const BufferPos = struct {
-    line: usize,
-    column: usize,
-};
+// const BufferPos = struct {
+//     line: usize,
+//     column: usize,
+// };
 
 /// A node in the piece tree.
 const PieceNode = struct {
     buffer_type: BufferType,
-    start: BufferPos,
-    end: BufferPos,
-
-    // piece-local length and newline counts
-    len: usize,
-    newline_count: usize,
-
-    // left subtree lengths and newline counts to make getting pieces by line
-    // and by offset fast.
-    left_subtree_len: usize,
-    left_subtree_newline_count: usize,
-
-    // make it a tree
     left: ?*PieceNode = null,
     right: ?*PieceNode = null,
-    parent: ?*PieceNode = null,
+
+    start: usize,
+    len: usize,
+    // start: BufferPos,
+    // end: BufferPos,
+
+    // piece-local length and newline counts
+    // len: usize,
+    // newline_count: usize,
+
+    // // left subtree lengths and newline counts to make getting pieces by line
+    // // and by offset fast.
+    // left_subtree_len: usize,
+    // left_subtree_newline_count: usize,
 };
 
 /// Main tree structure that holds all of the pieces.
@@ -53,18 +59,53 @@ const Treap = struct {
     /// Initializes the treap with a root node pointing at the original buffer.
     fn init(alloc: std.mem.Allocator, prng: std.Random.Xoshiro256, initial_content_len: usize) !Treap {
         const piece_node = try alloc.create(PieceNode);
-        piece_node.* = .{ .buffer_type = .add, .start = 0, .len = initial_content_len };
+        piece_node.* = .{ .buffer_type = .original, .start = 0, .len = initial_content_len };
 
         return .{ .alloc = alloc, .prng = prng, .root = piece_node };
     }
 
     /// Deinit the treap. Clears out all nodes.
     fn deinit(self: *Treap) void {
-        // delete all nodes
-        self.alloc.destroy(self.root);
+        self.destroy_nodes(self.root);
     }
 
-    // fn insert(self: *Treap, documentOffset: u32, contents: []u8) !void {}
+    // recursively destroy all nodes in the tree
+    fn destroy_nodes(self: *Treap, tree_node: ?*PieceNode) void {
+        if (tree_node) |node| {
+            self.destroy_nodes(node.left);
+            self.destroy_nodes(node.right);
+            self.alloc.destroy(node);
+        }
+    }
+
+    fn collect_contents(self: *Treap, alloc: std.mem.Allocator, tree_node: ?*PieceNode, list: *std.ArrayList(u8)) !void {
+        if (tree_node) |node| {
+            try self.collect_contents(alloc, node.left, list);
+            try list.appendSlice(alloc, "hi");
+            // try list.append(alloc, node.piece_conents());
+            try self.collect_contents(alloc, node.right, list);
+        }
+    }
+
+    // not working yet, but I think want to do content first so testing is easier
+    // /// Inserts a node into the tree.
+    // fn insert(tree_node: *PieceNode, insert_node: *PieceNode) PieceTreeError!void {
+    //     if (tree_node.buffer_type == insert_node.buffer_type and tree_node.start == insert_node.start) {
+    //         return PieceTreeError.DuplicateStart;
+    //     } else if (insert_node.start < tree_node.start) {
+    //         if (tree_node.left) |left| {
+    //             try Treap.insert(left, insert_node);
+    //         } else {
+    //             tree_node.left = insert_node;
+    //         }
+    //     } else if (insert_node.start > tree_node.start) {
+    //         if (tree_node.right) |right| {
+    //             try Treap.insert(right, insert_node);
+    //         } else {
+    //             tree_node.right = insert_node;
+    //         }
+    //     }
+    // }
 };
 
 /// Treap structure that store the pieces for the piece tree.
@@ -130,6 +171,34 @@ pub fn deinit(self: *PieceTree) void {
     self.pieces.deinit();
 }
 
+/// insert into the piece tree at the given offset.
+// pub fn insert(self: *PieceTree, offset: usize, contents: []const u8) PieceTreeError!void {
+//     if (contents.len < 1) {
+//         return PieceTreeError.ContentMissing;
+//     }
+
+//     const add_offset: usize = self.add_buffer.items.len;
+//     try self.add_buffer.appendSlice(self.alloc, contents);
+
+//     // inserting at the beginning of the document is a special case, just prepend the node
+//     if (offset == 0) {
+//         const piece_node = try self.alloc.create(PieceNode);
+//         errdefer self.alloc.destroy(piece_node);
+
+//         piece_node.* = .{ .buffer_type = .add, .start = add_offset, .len = contents.len };
+//         try Treap.insert(self.pieces.root, piece_node);
+//     }
+// }
+
+/// Returns all contents of the document. Recursively walk all pieces to assemble the final contents.
+pub fn contents(self: *PieceTree, alloc: std.mem.Allocator) ![]u8 {
+    var collect_list: std.ArrayList(u8) = .empty;
+    errdefer collect_list.deinit(alloc);
+
+    try self.pieces.collect_contents(alloc, self.pieces.root, &collect_list);
+    return collect_list.toOwnedSlice(alloc);
+}
+
 test "PieceTree init puts contents into original buffer and creates a tree for the pieces" {
     const alloc = std.testing.allocator;
     const prng = std.Random.DefaultPrng.init(0);
@@ -152,3 +221,43 @@ test "PieceTree init sets the correct line starts for the original buffer" {
     try std.testing.expectEqualSlices(usize, &[_]usize{ 0, 4, 8, 14 }, p.original_line_starts.items);
     try std.testing.expectEqualSlices(usize, &[_]usize{0}, p.add_line_starts.items);
 }
+
+test "PieceTree contents will get all contents of the tree" {
+    const alloc = std.testing.allocator;
+    const prng = std.Random.DefaultPrng.init(0);
+
+    var p = try PieceTree.init(alloc, prng, "two\nthree\n");
+    defer p.deinit();
+
+    try p.add_buffer.appendSlice(alloc, "one\n");
+    try p.add_buffer.appendSlice(alloc, "four\n");
+
+    // left node
+    const left = try alloc.create(PieceNode);
+    left.* = .{ .buffer_type = .add, .start = 0, .len = 4 };
+    p.pieces.root.left = left;
+
+    // right node
+    const right = try alloc.create(PieceNode);
+    right.* = .{ .buffer_type = .add, .start = 3, .len = 5 };
+    p.pieces.root.right = right;
+
+    const content = try p.contents(alloc);
+    defer alloc.free(content);
+
+    try std.testing.expectEqualStrings("one\ntwo\nthree\nfour\n", content);
+}
+
+// test "PieceTree insert will insert at beginning of the content" {
+//     const alloc = std.testing.allocator;
+//     const prng = std.Random.DefaultPrng.init(0);
+
+//     var p = try PieceTree.init(alloc, prng, "one\ntwo\nthree\n");
+//     defer p.deinit();
+
+//     try p.insert(0, "hello");
+//     try std.testing.expectEqualStrings("hello", p.add_buffer.items);
+//     // try std.testing.expectEqual(5, p.pieces.root.len);
+//     // try std.testing.expectEqual(0, p.pieces.root.start);
+
+// }
