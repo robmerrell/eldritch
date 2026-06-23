@@ -203,10 +203,7 @@ pub fn contents(self: *PieceTree, alloc: std.mem.Allocator) ![]u8 {
 fn collect_contents(self: *PieceTree, alloc: std.mem.Allocator, tree_node: ?*PieceNode, list: *std.ArrayList(u8)) !void {
     if (tree_node) |node| {
         try self.collect_contents(alloc, node.left, list);
-
-        // slice contents
-        try list.appendSlice(alloc, "hi");
-
+        try list.appendSlice(alloc, self.node_contents(node));
         try self.collect_contents(alloc, node.right, list);
     }
 }
@@ -261,13 +258,13 @@ test "PieceTree contents will get all contents of the tree" {
 
     // right node
     const right = try alloc.create(PieceNode);
-    right.* = .{ .buffer_type = .add, .start = 3, .len = 5 };
+    right.* = .{ .buffer_type = .add, .start = 4, .len = 5 };
     p.pieces.root.right = right;
 
     const content = try p.contents(alloc);
     defer alloc.free(content);
 
-    // try std.testing.expectEqualStrings("one\ntwo\nthree\nfour\n", content);
+    try std.testing.expectEqualStrings("one\ntwo\nthree\nfour\n", content);
 }
 
 // test "PieceTree insert will insert at beginning of the content" {
