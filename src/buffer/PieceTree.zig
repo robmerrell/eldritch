@@ -37,6 +37,10 @@ const PieceNode = struct {
 
     start: usize,
     len: usize,
+
+    // caches for faster lookup
+    left_subtree_len: usize,
+
     // start: BufferPos,
     // end: BufferPos,
 
@@ -46,7 +50,6 @@ const PieceNode = struct {
 
     // // left subtree lengths and newline counts to make getting pieces by line
     // // and by offset fast.
-    // left_subtree_len: usize,
     // left_subtree_newline_count: usize,
 };
 
@@ -59,7 +62,7 @@ const Treap = struct {
     /// Initializes the treap with a root node pointing at the original buffer.
     fn init(alloc: std.mem.Allocator, prng: std.Random.Xoshiro256, initial_content_len: usize) !Treap {
         const piece_node = try alloc.create(PieceNode);
-        piece_node.* = .{ .buffer_type = .original, .start = 0, .len = initial_content_len };
+        piece_node.* = .{ .buffer_type = .original, .start = 0, .len = initial_content_len, .left_subtree_len = 0 };
 
         return .{ .alloc = alloc, .prng = prng, .root = piece_node };
     }
@@ -181,6 +184,26 @@ pub fn deinit(self: *PieceTree) void {
 //     }
 // }
 
+/// Returns the node that contains the given offset.
+fn node_at_offset(self: *PieceTree, tree_node: ?*PieceNode, offset: usize) ?*PieceNode {
+    if (tree_node) |node| {
+        // keep going left
+        if (offset < node.left_subtree_len) {
+            return self.node_at_offset(node.left, offset);
+        }
+
+        // found on the node
+        if (offset - node.left_subtree_len < node.len) {
+            return node;
+        }
+
+        // go right
+        return self.node_at_offset(node.right, offset - node.left_subtree_len - node.len);
+    }
+
+    return null;
+}
+
 /// Returns the contents for an individual node.
 fn node_contents(self: *PieceTree, tree_node: *PieceNode) []u8 {
     const buffer = switch (tree_node.buffer_type) {
@@ -241,30 +264,116 @@ test "PieceTree node_contents returns the contents of a node" {
     try std.testing.expectEqualStrings("hello\n", p.node_contents(p.pieces.root));
 }
 
-test "PieceTree contents will get all contents of the tree" {
-    const alloc = std.testing.allocator;
+// Generates a realistic editing scenario where we have a 7 lines in a document "one\ntwo\n" etc.
+// Nodes should be in order. Hopefully this can survive all the changes I'm making to the tree...
+// I'm not sure if zig has a more clever way of building fixtures, but this will do.
+// The tree structure should look like:
+//                  4
+//                 / \
+//                2   6
+//               /\   /\
+//              1 3  5 7
+fn piece_tree_fixture(alloc: std.mem.Allocator) !PieceTree {
     const prng = std.Random.DefaultPrng.init(0);
 
-    var p = try PieceTree.init(alloc, prng, "two\nthree\n");
-    defer p.deinit();
-
+    var p = try PieceTree.init(alloc, prng, "four\n");
     try p.add_buffer.appendSlice(alloc, "one\n");
-    try p.add_buffer.appendSlice(alloc, "four\n");
+    try p.add_buffer.appendSlice(alloc, "two\n");
+    try p.add_buffer.appendSlice(alloc, "three\n");
+    try p.add_buffer.appendSlice(alloc, "five\n");
+    try p.add_buffer.appendSlice(alloc, "six\n");
+    try p.add_buffer.appendSlice(alloc, "seven\n");
 
-    // left node
-    const left = try alloc.create(PieceNode);
-    left.* = .{ .buffer_type = .add, .start = 0, .len = 4 };
-    p.pieces.root.left = left;
+    p.pieces.root.left_subtree_len = 14;
 
-    // right node
-    const right = try alloc.create(PieceNode);
-    right.* = .{ .buffer_type = .add, .start = 4, .len = 5 };
-    p.pieces.root.right = right;
+    // one|two|three|five|six|seven| -- add buffer
+    // one|two|three|four|five|six|seven| -- contents
+
+    // 2
+    const node2 = try alloc.create(PieceNode);
+    node2.* = .{ .buffer_type = .add, .start = 4, .len = 4, .left_subtree_len = 4 };
+    p.pieces.root.left = node2;
+
+    // 1
+    const node1 = try alloc.create(PieceNode);
+    node1.* = .{ .buffer_type = .add, .start = 0, .len = 4, .left_subtree_len = 0 };
+    p.pieces.root.left.?.left = node1;
+
+    // 3
+    const node3 = try alloc.create(PieceNode);
+    node3.* = .{ .buffer_type = .add, .start = 8, .len = 6, .left_subtree_len = 0 };
+    p.pieces.root.left.?.right = node3;
+
+    // 6
+    const node6 = try alloc.create(PieceNode);
+    node6.* = .{ .buffer_type = .add, .start = 19, .len = 4, .left_subtree_len = 5 };
+    p.pieces.root.right = node6;
+
+    // 5
+    const node5 = try alloc.create(PieceNode);
+    node5.* = .{ .buffer_type = .add, .start = 14, .len = 5, .left_subtree_len = 0 };
+    p.pieces.root.right.?.left = node5;
+
+    // 7
+    const node7 = try alloc.create(PieceNode);
+    node7.* = .{ .buffer_type = .add, .start = 23, .len = 6, .left_subtree_len = 0 };
+    p.pieces.root.right.?.right = node7;
+
+    return p;
+}
+
+test "PieceTree contents will get all contents of the tree" {
+    const alloc = std.testing.allocator;
+
+    var p = try piece_tree_fixture(alloc);
+    defer p.deinit();
 
     const content = try p.contents(alloc);
     defer alloc.free(content);
 
-    try std.testing.expectEqualStrings("one\ntwo\nthree\nfour\n", content);
+    try std.testing.expectEqualStrings("one\ntwo\nthree\nfour\nfive\nsix\nseven\n", content);
+}
+
+test "PieceTree node_at_offset finds the correct nodes at their offsets" {
+    const alloc = std.testing.allocator;
+
+    var p = try piece_tree_fixture(alloc);
+    defer p.deinit();
+
+    const content = try p.contents(alloc);
+    defer alloc.free(content);
+
+    // out of bounds
+    var node = p.node_at_offset(p.pieces.root, 1000);
+    try std.testing.expect(node == null);
+
+    // one
+    node = p.node_at_offset(p.pieces.root, 1);
+    try std.testing.expectEqual(p.pieces.root.left.?.left, node);
+
+    // two
+    node = p.node_at_offset(p.pieces.root, 4);
+    try std.testing.expectEqual(p.pieces.root.left, node);
+
+    // three
+    node = p.node_at_offset(p.pieces.root, 13);
+    try std.testing.expectEqual(p.pieces.root.left.?.right, node);
+
+    // four
+    node = p.node_at_offset(p.pieces.root, 15);
+    try std.testing.expectEqual(p.pieces.root, node);
+
+    // five
+    node = p.node_at_offset(p.pieces.root, 20);
+    try std.testing.expectEqual(p.pieces.root.right.?.left, node);
+
+    // six
+    node = p.node_at_offset(p.pieces.root, 25);
+    try std.testing.expectEqual(p.pieces.root.right, node);
+
+    // seven
+    node = p.node_at_offset(p.pieces.root, 30);
+    try std.testing.expectEqual(p.pieces.root.right.?.right, node);
 }
 
 // test "PieceTree insert will insert at beginning of the content" {
