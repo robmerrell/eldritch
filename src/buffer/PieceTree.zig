@@ -34,6 +34,7 @@ const PieceNode = struct {
     buffer_type: BufferType,
     left: ?*PieceNode = null,
     right: ?*PieceNode = null,
+    parent: ?*PieceNode,
 
     start: usize,
     len: usize,
@@ -62,7 +63,13 @@ const Treap = struct {
     /// Initializes the treap with a root node pointing at the original buffer.
     fn init(alloc: std.mem.Allocator, prng: std.Random.Xoshiro256, initial_content_len: usize) !Treap {
         const piece_node = try alloc.create(PieceNode);
-        piece_node.* = .{ .buffer_type = .original, .start = 0, .len = initial_content_len, .left_subtree_len = 0 };
+        piece_node.* = .{
+            .buffer_type = .original,
+            .start = 0,
+            .len = initial_content_len,
+            .left_subtree_len = 0,
+            .parent = null,
+        };
 
         return .{ .alloc = alloc, .prng = prng, .root = piece_node };
     }
@@ -291,32 +298,32 @@ fn piece_tree_fixture(alloc: std.mem.Allocator) !PieceTree {
 
     // 2
     const node2 = try alloc.create(PieceNode);
-    node2.* = .{ .buffer_type = .add, .start = 4, .len = 4, .left_subtree_len = 4 };
+    node2.* = .{ .buffer_type = .add, .start = 4, .len = 4, .left_subtree_len = 4, .parent = p.pieces.root };
     p.pieces.root.left = node2;
 
     // 1
     const node1 = try alloc.create(PieceNode);
-    node1.* = .{ .buffer_type = .add, .start = 0, .len = 4, .left_subtree_len = 0 };
+    node1.* = .{ .buffer_type = .add, .start = 0, .len = 4, .left_subtree_len = 0, .parent = node2 };
     p.pieces.root.left.?.left = node1;
 
     // 3
     const node3 = try alloc.create(PieceNode);
-    node3.* = .{ .buffer_type = .add, .start = 8, .len = 6, .left_subtree_len = 0 };
+    node3.* = .{ .buffer_type = .add, .start = 8, .len = 6, .left_subtree_len = 0, .parent = node2 };
     p.pieces.root.left.?.right = node3;
 
     // 6
     const node6 = try alloc.create(PieceNode);
-    node6.* = .{ .buffer_type = .add, .start = 19, .len = 4, .left_subtree_len = 5 };
+    node6.* = .{ .buffer_type = .add, .start = 19, .len = 4, .left_subtree_len = 5, .parent = p.pieces.root };
     p.pieces.root.right = node6;
 
     // 5
     const node5 = try alloc.create(PieceNode);
-    node5.* = .{ .buffer_type = .add, .start = 14, .len = 5, .left_subtree_len = 0 };
+    node5.* = .{ .buffer_type = .add, .start = 14, .len = 5, .left_subtree_len = 0, .parent = node6 };
     p.pieces.root.right.?.left = node5;
 
     // 7
     const node7 = try alloc.create(PieceNode);
-    node7.* = .{ .buffer_type = .add, .start = 23, .len = 6, .left_subtree_len = 0 };
+    node7.* = .{ .buffer_type = .add, .start = 23, .len = 6, .left_subtree_len = 0, .parent = node6 };
     p.pieces.root.right.?.right = node7;
 
     return p;
