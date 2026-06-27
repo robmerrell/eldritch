@@ -238,6 +238,17 @@ fn collect_contents(self: *PieceTree, alloc: std.mem.Allocator, tree_node: ?*Pie
     }
 }
 
+/// walk up the tree and update all node size caches
+fn update_caches(tree_node: ?*PieceNode, from_node: *PieceNode, delta: usize) void {
+    if (tree_node) |node| {
+        if (from_node == node.left) {
+            node.left_subtree_len += delta;
+        }
+
+        update_caches(node.parent, node, delta);
+    }
+}
+
 test "PieceTree init puts contents into original buffer and creates a tree for the pieces" {
     const alloc = std.testing.allocator;
     const prng = std.Random.DefaultPrng.init(0);
@@ -381,6 +392,40 @@ test "PieceTree node_at_offset finds the correct nodes at their offsets" {
     // seven
     node = p.node_at_offset(p.pieces.root, 30);
     try std.testing.expectEqual(p.pieces.root.right.?.right, node);
+}
+
+test "update_caches updates left_subtree_len for all parents" {
+    const alloc = std.testing.allocator;
+
+    var p = try piece_tree_fixture(alloc);
+    defer p.deinit();
+
+    const content = try p.contents(alloc);
+    defer alloc.free(content);
+
+    // left side traversal causes update (update node "1")
+    var node = p.pieces.root.left.?.left.?;
+    update_caches(node.parent, node, 3);
+    try std.testing.expectEqual(7, p.pieces.root.left.?.left_subtree_len);
+    try std.testing.expectEqual(17, p.pieces.root.left_subtree_len);
+
+    // right does not until a left side is used again (update node "3")
+    node = p.pieces.root.left.?.right.?;
+    update_caches(node.parent, node, 3);
+    try std.testing.expectEqual(7, p.pieces.root.left.?.left_subtree_len);
+    try std.testing.expectEqual(20, p.pieces.root.left_subtree_len);
+
+    // subtree of right updates (update node "5")
+    node = p.pieces.root.right.?.left.?;
+    update_caches(node.parent, node, 5);
+    try std.testing.expectEqual(10, p.pieces.root.right.?.left_subtree_len);
+    try std.testing.expectEqual(20, p.pieces.root.left_subtree_len); // still the same from node 3 change
+
+    // all rights do not update
+    node = p.pieces.root.right.?.right.?;
+    update_caches(node.parent, node, 5);
+    try std.testing.expectEqual(10, p.pieces.root.right.?.left_subtree_len);
+    try std.testing.expectEqual(20, p.pieces.root.left_subtree_len);
 }
 
 // test "PieceTree insert will insert at beginning of the content" {
