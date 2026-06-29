@@ -173,42 +173,38 @@ pub fn deinit(self: *PieceTree) void {
 }
 
 /// insert into the piece tree at the given offset.
-// pub fn insert(self: *PieceTree, offset: usize, contents: []const u8) PieceTreeError!void {
-//     if (contents.len < 1) {
+// pub fn insert(self: *PieceTree, offset: usize, add_contents: []const u8) PieceTreeError!void {
+//     if (add_contents.len < 1) {
 //         return PieceTreeError.ContentMissing;
 //     }
 
-//     const add_offset: usize = self.add_buffer.items.len;
-//     try self.add_buffer.appendSlice(self.alloc, contents);
+//     // const add_offset: usize = self.add_buffer.items.len;
+//     try self.add_buffer.appendSlice(self.alloc, add_contents);
 
-//     // inserting at the beginning of the document is a special case, just prepend the node
-//     if (offset == 0) {
-//         const piece_node = try self.alloc.create(PieceNode);
-//         errdefer self.alloc.destroy(piece_node);
-
-//         piece_node.* = .{ .buffer_type = .add, .start = add_offset, .len = contents.len };
-//         try Treap.insert(self.pieces.root, piece_node);
-//     }
+//     const node = self.node_at_offset(self.pieces.root, offset);
 // }
 
+const NodeLocation = struct { node: ?*PieceNode, local_offset: usize };
+
 /// Returns the node that contains the given offset.
-fn node_at_offset(self: *PieceTree, tree_node: ?*PieceNode, offset: usize) ?*PieceNode {
+fn node_at_offset(tree_node: ?*PieceNode, offset: usize) NodeLocation {
     if (tree_node) |node| {
         // keep going left
         if (offset < node.left_subtree_len) {
-            return self.node_at_offset(node.left, offset);
+            return node_at_offset(node.left, offset);
         }
 
         // found on the node
-        if (offset - node.left_subtree_len < node.len) {
-            return node;
+        const local = offset - node.left_subtree_len;
+        if (local < node.len) {
+            return NodeLocation{ .node = node, .local_offset = local };
         }
 
         // go right
-        return self.node_at_offset(node.right, offset - node.left_subtree_len - node.len);
+        return node_at_offset(node.right, offset - node.left_subtree_len - node.len);
     }
 
-    return null;
+    return NodeLocation{ .node = null, .local_offset = 0 };
 }
 
 /// Returns the contents for an individual node.
@@ -362,36 +358,44 @@ test "PieceTree node_at_offset finds the correct nodes at their offsets" {
     defer alloc.free(content);
 
     // out of bounds
-    var node = p.node_at_offset(p.pieces.root, 1000);
-    try std.testing.expect(node == null);
+    var node_loc = node_at_offset(p.pieces.root, 1000);
+    try std.testing.expect(node_loc.node == null);
+    try std.testing.expectEqual(0, node_loc.local_offset);
 
     // one
-    node = p.node_at_offset(p.pieces.root, 1);
-    try std.testing.expectEqual(p.pieces.root.left.?.left, node);
+    node_loc = node_at_offset(p.pieces.root, 1);
+    try std.testing.expectEqual(p.pieces.root.left.?.left, node_loc.node);
+    try std.testing.expectEqual(1, node_loc.local_offset);
 
     // two
-    node = p.node_at_offset(p.pieces.root, 4);
-    try std.testing.expectEqual(p.pieces.root.left, node);
+    node_loc = node_at_offset(p.pieces.root, 4);
+    try std.testing.expectEqual(p.pieces.root.left, node_loc.node);
+    try std.testing.expectEqual(0, node_loc.local_offset);
 
     // three
-    node = p.node_at_offset(p.pieces.root, 13);
-    try std.testing.expectEqual(p.pieces.root.left.?.right, node);
+    node_loc = node_at_offset(p.pieces.root, 13);
+    try std.testing.expectEqual(p.pieces.root.left.?.right, node_loc.node);
+    try std.testing.expectEqual(5, node_loc.local_offset);
 
     // four
-    node = p.node_at_offset(p.pieces.root, 15);
-    try std.testing.expectEqual(p.pieces.root, node);
+    node_loc = node_at_offset(p.pieces.root, 15);
+    try std.testing.expectEqual(p.pieces.root, node_loc.node);
+    try std.testing.expectEqual(1, node_loc.local_offset);
 
     // five
-    node = p.node_at_offset(p.pieces.root, 20);
-    try std.testing.expectEqual(p.pieces.root.right.?.left, node);
+    node_loc = node_at_offset(p.pieces.root, 21);
+    try std.testing.expectEqual(p.pieces.root.right.?.left, node_loc.node);
+    try std.testing.expectEqual(2, node_loc.local_offset);
 
     // six
-    node = p.node_at_offset(p.pieces.root, 25);
-    try std.testing.expectEqual(p.pieces.root.right, node);
+    node_loc = node_at_offset(p.pieces.root, 25);
+    try std.testing.expectEqual(p.pieces.root.right, node_loc.node);
+    try std.testing.expectEqual(1, node_loc.local_offset);
 
     // seven
-    node = p.node_at_offset(p.pieces.root, 30);
-    try std.testing.expectEqual(p.pieces.root.right.?.right, node);
+    node_loc = node_at_offset(p.pieces.root, 31);
+    try std.testing.expectEqual(p.pieces.root.right.?.right, node_loc.node);
+    try std.testing.expectEqual(3, node_loc.local_offset);
 }
 
 test "update_caches updates left_subtree_len for all parents" {
