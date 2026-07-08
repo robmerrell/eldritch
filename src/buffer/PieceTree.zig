@@ -34,7 +34,7 @@ const PieceNode = struct {
     buffer_type: BufferType,
     left: ?*PieceNode = null,
     right: ?*PieceNode = null,
-    parent: ?*PieceNode,
+    parent: ?*PieceNode = null,
 
     start: usize,
     len: usize,
@@ -68,7 +68,6 @@ const Treap = struct {
             .start = 0,
             .len = initial_content_len,
             .left_subtree_len = 0,
-            .parent = null,
         };
 
         return .{ .alloc = alloc, .prng = prng, .root = piece_node };
@@ -87,26 +86,6 @@ const Treap = struct {
             self.alloc.destroy(node);
         }
     }
-
-    // not working yet, but I think want to do content first so testing is easier
-    // /// Inserts a node into the tree.
-    // fn insert(tree_node: *PieceNode, insert_node: *PieceNode) PieceTreeError!void {
-    //     if (tree_node.buffer_type == insert_node.buffer_type and tree_node.start == insert_node.start) {
-    //         return PieceTreeError.DuplicateStart;
-    //     } else if (insert_node.start < tree_node.start) {
-    //         if (tree_node.left) |left| {
-    //             try Treap.insert(left, insert_node);
-    //         } else {
-    //             tree_node.left = insert_node;
-    //         }
-    //     } else if (insert_node.start > tree_node.start) {
-    //         if (tree_node.right) |right| {
-    //             try Treap.insert(right, insert_node);
-    //         } else {
-    //             tree_node.right = insert_node;
-    //         }
-    //     }
-    // }
 };
 
 /// Treap structure that store the pieces for the piece tree.
@@ -173,16 +152,85 @@ pub fn deinit(self: *PieceTree) void {
 }
 
 /// insert into the piece tree at the given offset.
-// pub fn insert(self: *PieceTree, offset: usize, add_contents: []const u8) PieceTreeError!void {
-//     if (add_contents.len < 1) {
-//         return PieceTreeError.ContentMissing;
-//     }
+pub fn insert(self: *PieceTree, offset: usize, add_contents: []const u8) PieceTreeError!void {
+    if (add_contents.len < 1) {
+        return PieceTreeError.ContentMissing;
+    }
 
-//     // const add_offset: usize = self.add_buffer.items.len;
-//     try self.add_buffer.appendSlice(self.alloc, add_contents);
+    const add_offset: usize = self.add_buffer.items.len;
+    try self.add_buffer.appendSlice(self.alloc, add_contents);
+    const node_loc = node_at_offset(self.pieces.root, offset);
 
-//     const node = self.node_at_offset(self.pieces.root, offset);
-// }
+    if (node_loc.node) |node| {
+        if (node_loc.local_offset == 0) {
+            // create a new piece and place on left side of parent and relink left child further down
+            const new_node = try self.alloc.create(PieceNode);
+            new_node.* = .{
+                .buffer_type = .add,
+                .start = add_offset,
+                .len = add_contents.len,
+                .left_subtree_len = node.left_subtree_len,
+                .parent = node,
+                .left = node.left,
+            };
+            node.left = new_node;
+
+            if (new_node.left) |left_node| {
+                left_node.parent = new_node;
+            }
+
+            update_caches(node, new_node, add_contents.len);
+        } else {
+            // middle of a piece - Create a new left piece, Create a new right, and modify current piece to point at new content
+
+            // new sides
+            const new_left = try self.alloc.create(PieceNode);
+            new_left.* = .{
+                .buffer_type = node.buffer_type,
+                .start = node.start,
+                .len = node_loc.local_offset,
+                .left_subtree_len = node.left_subtree_len,
+                .parent = node,
+                .left = node.left,
+                .right = null,
+            };
+
+            const new_right = try self.alloc.create(PieceNode);
+            new_right.* = .{
+                .buffer_type = node.buffer_type,
+                .start = node.start + node_loc.local_offset,
+                .len = node.len - node_loc.local_offset,
+                .left_subtree_len = 0,
+                .parent = node,
+                .left = null,
+                .right = node.right,
+            };
+
+            // modify the current
+            node.buffer_type = .add;
+            node.left = new_left;
+            node.right = new_right;
+            node.start = add_offset;
+            node.len = add_contents.len;
+            node.left_subtree_len += new_left.len;
+
+            // modify the subtrees that moved around for the new nodes
+            if (new_left.left) |left_node| {
+                left_node.parent = new_left;
+            }
+            if (new_right.right) |right_node| {
+                right_node.parent = new_right;
+            }
+
+            update_caches(node.parent, node, add_contents.len);
+        }
+    } else {
+        // TODO: do something when out of bounds?
+    }
+
+    // TODO: very end of document? I think the right piece would be a memory leak
+    // TODO: continue writing to the piece
+}
 
 const NodeLocation = struct { node: ?*PieceNode, local_offset: usize };
 
@@ -432,16 +480,113 @@ test "update_caches updates left_subtree_len for all parents" {
     try std.testing.expectEqual(20, p.pieces.root.left_subtree_len);
 }
 
-// test "PieceTree insert will insert at beginning of the content" {
-//     const alloc = std.testing.allocator;
-//     const prng = std.Random.DefaultPrng.init(0);
+test "PieceTree insert can insert at the beginning of a piece" {
+    const alloc = std.testing.allocator;
 
-//     var p = try PieceTree.init(alloc, prng, "one\ntwo\nthree\n");
-//     defer p.deinit();
+    var p = try piece_tree_fixture(alloc);
+    defer p.deinit();
 
-//     try p.insert(0, "hello");
-//     try std.testing.expectEqualStrings("hello", p.add_buffer.items);
-//     // try std.testing.expectEqual(5, p.pieces.root.len);
-//     // try std.testing.expectEqual(0, p.pieces.root.start);
+    // splits nodes - adds "2" to the beginning of "two".
+    try p.insert(4, "2");
+    const content = try p.contents(alloc);
+    defer alloc.free(content);
+    try std.testing.expectEqualStrings("one\n2two\nthree\nfour\nfive\nsix\nseven\n", content);
 
-// }
+    // test the node setup
+    const new_node = p.pieces.root.left.?;
+    try std.testing.expectEqual(p.pieces.root, new_node.parent);
+    try std.testing.expectEqual(5, new_node.left_subtree_len);
+    try std.testing.expectEqual(15, new_node.parent.?.left_subtree_len);
+
+    const moved_node = p.pieces.root.left.?.left.?;
+    try std.testing.expectEqual(4, moved_node.left_subtree_len);
+}
+
+test "PieceTree insert can insert in the middle of a piece" {
+    const alloc = std.testing.allocator;
+
+    var p = try piece_tree_fixture(alloc);
+    defer p.deinit();
+
+    // splits nodes adds "4" to the middle of "four".
+    try p.insert(16, "4");
+    const content = try p.contents(alloc);
+    defer alloc.free(content);
+    try std.testing.expectEqualStrings("one\ntwo\nthree\nfo4ur\nfive\nsix\nseven\n", content);
+
+    // updated node
+    const updated_node = p.pieces.root;
+    try std.testing.expectEqual(1, updated_node.len);
+    try std.testing.expectEqual(16, updated_node.left_subtree_len);
+
+    // new left
+    const new_left = updated_node.left.?;
+    try std.testing.expectEqual(2, new_left.len);
+    try std.testing.expectEqual(14, new_left.left_subtree_len);
+
+    // new right
+    const new_right = updated_node.right.?;
+    try std.testing.expectEqual(3, new_right.len);
+    try std.testing.expectEqual(0, new_right.left_subtree_len);
+}
+
+test "PieceTree insert can insert at the end of a piece" {
+    const alloc = std.testing.allocator;
+
+    var p = try piece_tree_fixture(alloc);
+    defer p.deinit();
+
+    // splits nodes adds "1" to the end of "one".
+    try p.insert(3, "1");
+    const content = try p.contents(alloc);
+    defer alloc.free(content);
+    try std.testing.expectEqualStrings("one1\ntwo\nthree\nfour\nfive\nsix\nseven\n", content);
+
+    // nodes
+    const parent = p.pieces.root.left.?.left.?;
+    try std.testing.expectEqual(1, parent.len);
+    try std.testing.expectEqual(3, parent.left_subtree_len);
+
+    const new_left = parent.left.?;
+    try std.testing.expectEqual(3, new_left.len);
+    try std.testing.expectEqual(0, new_left.left_subtree_len);
+}
+
+test "PieceTree insert can handle thousands of inserts" {
+    // Fuzz testing is broken on Linux at the moment, so this fakes it a bit by creating a reference
+    // buffer. We insert into the reference buffer and the piece tree at the same location and compare
+    // their strings outputs. They should always match.
+    const alloc = std.testing.allocator;
+
+    var p = try piece_tree_fixture(alloc);
+    defer p.deinit();
+
+    // match the reference to our piece tree fixture
+    var reference: std.ArrayList(u8) = .empty;
+    try reference.insertSlice(alloc, 0, "one\ntwo\nthree\nfour\nfive\nsix\nseven\n");
+    defer reference.deinit(alloc);
+
+    var prng = std.Random.DefaultPrng.init(0);
+    const rand = prng.random();
+
+    for (1..2000) |_| {
+        const pos = rand.intRangeLessThan(usize, 0, reference.items.len);
+        const content_len = rand.intRangeAtMost(usize, 1, 100);
+
+        // generate random contents to insert
+        var insert_contents: std.ArrayList(u8) = .empty;
+        defer insert_contents.deinit(alloc);
+        try insert_contents.appendNTimes(alloc, @as(u8, 'a'), content_len);
+
+        // insert into both
+        try reference.insertSlice(alloc, pos, insert_contents.items);
+        try p.insert(pos, insert_contents.items);
+
+        // std.debug.print("insert len: {d}, at: {d}\n", .{ content_len, pos });
+
+        // compare
+        const tree_contents = try p.contents(alloc);
+        defer alloc.free(tree_contents);
+        try std.testing.expectEqualStrings(reference.items, tree_contents);
+    }
+}
