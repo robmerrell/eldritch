@@ -46,7 +46,6 @@ const PieceNode = struct {
     // end: BufferPos,
 
     // piece-local length and newline counts
-    // len: usize,
     // newline_count: usize,
 
     // // left subtree lengths and newline counts to make getting pieces by line
@@ -111,6 +110,10 @@ add_buffer: std.ArrayList(u8),
 /// All offsets of line starts in the add buffer.
 add_line_starts: std.ArrayList(usize),
 
+/// The last piece and end that was inserted into. We use this to check if we can just keep adding to the piece.
+last_insert_node: ?*PieceNode = null,
+last_insert_end: usize = 0,
+
 /// initialize the Piece Tree.
 /// The original buffer is generated from the initial contents.
 pub fn init(alloc: std.mem.Allocator, prng: std.Random.Xoshiro256, initial_contents: []const u8) !PieceTree {
@@ -159,8 +162,21 @@ pub fn insert(self: *PieceTree, offset: usize, add_contents: []const u8) PieceTr
 
     const add_offset: usize = self.add_buffer.items.len;
     try self.add_buffer.appendSlice(self.alloc, add_contents);
-    const node_loc = node_at_offset(self.pieces.root, offset);
 
+    // try to grow the last written node
+    if (self.last_insert_node) |node| {
+        if (node.buffer_type == .add and
+            node.start + node.len == add_offset and
+            offset == self.last_insert_end)
+        {
+            node.len += add_contents.len;
+            update_caches(node.parent, node, add_contents.len);
+            self.last_insert_end += add_contents.len;
+            return;
+        }
+    }
+
+    const node_loc = node_at_offset(self.pieces.root, offset);
     if (node_loc.node) |node| {
         if (node_loc.local_offset == 0) {
             // create a new piece and place on left side of parent and relink left child further down
@@ -180,6 +196,8 @@ pub fn insert(self: *PieceTree, offset: usize, add_contents: []const u8) PieceTr
             }
 
             update_caches(node, new_node, add_contents.len);
+            self.last_insert_node = new_node;
+            self.last_insert_end = offset + add_contents.len;
         } else {
             // middle of a piece - Create a new left piece, Create a new right, and modify current piece to point at new content
 
@@ -223,13 +241,13 @@ pub fn insert(self: *PieceTree, offset: usize, add_contents: []const u8) PieceTr
             }
 
             update_caches(node.parent, node, add_contents.len);
+            self.last_insert_node = node;
+            self.last_insert_end = offset + add_contents.len;
         }
     } else {
         // TODO: do something when out of bounds?
+        @panic("Out of bounds insert");
     }
-
-    // TODO: very end of document? I think the right piece would be a memory leak
-    // TODO: continue writing to the piece
 }
 
 const NodeLocation = struct { node: ?*PieceNode, local_offset: usize };
@@ -550,6 +568,27 @@ test "PieceTree insert can insert at the end of a piece" {
     const new_left = parent.left.?;
     try std.testing.expectEqual(3, new_left.len);
     try std.testing.expectEqual(0, new_left.left_subtree_len);
+}
+
+test "PieceTree insert will continue writing on a piece" {
+    const alloc = std.testing.allocator;
+
+    var p = try piece_tree_fixture(alloc);
+    defer p.deinit();
+
+    // splits nodes adds "1" to the end of "one".
+    try p.insert(3, "1");
+
+    // then keeps inserting onto it
+    try p.insert(4, "2345");
+    const content = try p.contents(alloc);
+    defer alloc.free(content);
+    try std.testing.expectEqualStrings("one12345\ntwo\nthree\nfour\nfive\nsix\nseven\n", content);
+
+    // nodes
+    const parent = p.pieces.root.left.?.left.?;
+    try std.testing.expectEqual(5, parent.len);
+    try std.testing.expectEqual(9, parent.parent.?.left_subtree_len);
 }
 
 test "PieceTree insert can handle thousands of inserts" {
