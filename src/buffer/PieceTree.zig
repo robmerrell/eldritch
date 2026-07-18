@@ -163,6 +163,13 @@ pub fn insert(self: *PieceTree, offset: usize, add_contents: []const u8) PieceTr
     const add_offset: usize = self.add_buffer.items.len;
     try self.add_buffer.appendSlice(self.alloc, add_contents);
 
+    // add the line starts
+    for (add_contents, 0..) |byte, i| {
+        if (byte == '\n') {
+            try self.add_line_starts.append(self.alloc, add_offset + i + 1);
+        }
+    }
+
     // try to grow the last written node
     if (self.last_insert_node) |node| {
         if (node.buffer_type == .add and
@@ -366,6 +373,13 @@ fn piece_tree_fixture(alloc: std.mem.Allocator) !PieceTree {
 
     p.pieces.root.left_subtree_len = 14;
 
+    try p.add_line_starts.append(p.alloc, 4);
+    try p.add_line_starts.append(p.alloc, 8);
+    try p.add_line_starts.append(p.alloc, 14);
+    try p.add_line_starts.append(p.alloc, 19);
+    try p.add_line_starts.append(p.alloc, 23);
+    try p.add_line_starts.append(p.alloc, 29);
+
     // one|two|three|five|six|seven| -- add buffer
     // one|two|three|four|five|six|seven| -- contents
 
@@ -546,6 +560,19 @@ test "PieceTree insert can insert in the middle of a piece" {
     const new_right = updated_node.right.?;
     try std.testing.expectEqual(3, new_right.len);
     try std.testing.expectEqual(0, new_right.left_subtree_len);
+}
+
+test "PieceTree insert add_lines holds newlines in the add buffer" {
+    const alloc = std.testing.allocator;
+
+    var p = try piece_tree_fixture(alloc);
+    defer p.deinit();
+
+    try p.insert(4, "hi\n");
+    try p.insert(12, "\nok");
+    try p.insert(6, "yes\n");
+
+    try std.testing.expectEqualSlices(usize, &[_]usize{ 0, 4, 8, 14, 19, 23, 29, 32, 33, 39 }, p.add_line_starts.items);
 }
 
 test "PieceTree insert can insert at the end of a piece" {
