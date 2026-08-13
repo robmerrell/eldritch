@@ -21,16 +21,11 @@ const PieceTreeError = error{
 /// add - Any modifications made to the original buffer go here.
 const BufferType = enum { original, add };
 
-/// Instead of storing just a start and length in the piece we want to
-/// store positions in the buffer. This lets us split pieces without needing
-/// to re-read the content.
-// const BufferPos = struct {
-//     line: usize,
-//     column: usize,
-// };
-
 /// A node in the piece tree.
 const PieceNode = struct {
+    // heap priority for the treap
+    priority: u64,
+
     // original or add
     buffer_type: BufferType,
 
@@ -52,10 +47,9 @@ const PieceNode = struct {
 const Treap = struct {
     root: *PieceNode,
     alloc: std.mem.Allocator,
-    prng: std.Random.Xoshiro256,
 
     /// Initializes the treap with a root node pointing at the original buffer.
-    fn init(alloc: std.mem.Allocator, prng: std.Random.Xoshiro256, initial_content_len: usize, initial_newline_count: usize) !Treap {
+    fn init(alloc: std.mem.Allocator, priority: u64, initial_content_len: usize, initial_newline_count: usize) !Treap {
         const piece_node = try alloc.create(PieceNode);
         piece_node.* = .{
             .buffer_type = .original,
@@ -64,9 +58,10 @@ const Treap = struct {
             .left_subtree_len = 0,
             .newline_count = initial_newline_count,
             .left_subtree_newline_count = 0,
+            .priority = priority,
         };
 
-        return .{ .alloc = alloc, .prng = prng, .root = piece_node };
+        return .{ .alloc = alloc, .root = piece_node };
     }
 
     /// Deinit the treap. Clears out all nodes.
@@ -91,7 +86,7 @@ pieces: Treap,
 alloc: std.mem.Allocator,
 
 /// Random number generator used for the treap node priorities.
-prng: std.Random.Xoshiro256,
+prng: *std.Random.Xoshiro256,
 
 /// Buffer that holds the original content. Generally this buffer should never see changes,
 /// but there might be some optimizations to be had "reopening" a file so remove pieces
@@ -113,7 +108,7 @@ last_insert_end: usize = 0,
 
 /// initialize the Piece Tree.
 /// The original buffer is generated from the initial contents.
-pub fn init(alloc: std.mem.Allocator, prng: std.Random.Xoshiro256, initial_contents: []const u8) !PieceTree {
+pub fn init(alloc: std.mem.Allocator, prng: *std.Random.Xoshiro256, initial_contents: []const u8) !PieceTree {
     var original_buffer: std.ArrayList(u8) = .empty;
     try original_buffer.appendSlice(alloc, initial_contents);
 
@@ -130,7 +125,8 @@ pub fn init(alloc: std.mem.Allocator, prng: std.Random.Xoshiro256, initial_conte
     var add_line_starts: std.ArrayList(usize) = .empty;
     try add_line_starts.append(alloc, 0);
 
-    const treap = try Treap.init(alloc, prng, initial_contents.len, original_line_starts.items.len - 1);
+    const root_priority = prng.random().int(u64);
+    const treap = try Treap.init(alloc, root_priority, initial_contents.len, original_line_starts.items.len - 1);
     return .{
         .alloc = alloc,
         .prng = prng,
@@ -149,6 +145,11 @@ pub fn deinit(self: *PieceTree) void {
     self.add_buffer.deinit(self.alloc);
     self.add_line_starts.deinit(self.alloc);
     self.pieces.deinit();
+}
+
+/// generate a priority for a node.
+fn next_priority(self: *PieceTree) u64 {
+    return self.prng.random().int(u64);
 }
 
 /// insert into the piece tree at the given offset.
@@ -197,6 +198,7 @@ pub fn insert(self: *PieceTree, offset: usize, add_contents: []const u8) PieceTr
                 .left_subtree_newline_count = node.left_subtree_newline_count,
                 .parent = node,
                 .left = node.left,
+                .priority = self.next_priority(),
             };
             node.left = new_node;
 
@@ -221,6 +223,7 @@ pub fn insert(self: *PieceTree, offset: usize, add_contents: []const u8) PieceTr
                 .parent = node,
                 .left = node.left,
                 .right = null,
+                .priority = self.next_priority(),
             };
             new_left.newline_count = self.node_newline_count(new_left);
 
@@ -234,6 +237,7 @@ pub fn insert(self: *PieceTree, offset: usize, add_contents: []const u8) PieceTr
                 .parent = node,
                 .left = null,
                 .right = node.right,
+                .priority = self.next_priority(),
             };
             new_right.newline_count = self.node_newline_count(new_right);
 
@@ -391,9 +395,9 @@ fn update_caches(tree_node: ?*PieceNode, from_node: *PieceNode, delta: usize, ne
 
 test "PieceTree init puts contents into original buffer and creates a tree for the pieces" {
     const alloc = std.testing.allocator;
-    const prng = std.Random.DefaultPrng.init(0);
+    var prng = std.Random.DefaultPrng.init(0);
 
-    var p = try PieceTree.init(alloc, prng, "hello");
+    var p = try PieceTree.init(alloc, &prng, "hello");
     defer p.deinit();
 
     try std.testing.expectEqualStrings("hello", p.original_buffer.items);
@@ -403,9 +407,9 @@ test "PieceTree init puts contents into original buffer and creates a tree for t
 
 test "PieceTree init sets the correct line starts for the original buffer" {
     const alloc = std.testing.allocator;
-    const prng = std.Random.DefaultPrng.init(0);
+    var prng = std.Random.DefaultPrng.init(0);
 
-    var p = try PieceTree.init(alloc, prng, "one\ntwo\nthree\n");
+    var p = try PieceTree.init(alloc, &prng, "one\ntwo\nthree\n");
     defer p.deinit();
 
     try std.testing.expectEqualSlices(usize, &[_]usize{ 0, 4, 8, 14 }, p.original_line_starts.items);
@@ -414,9 +418,9 @@ test "PieceTree init sets the correct line starts for the original buffer" {
 
 test "PieceTree node_contents returns the contents of a node" {
     const alloc = std.testing.allocator;
-    const prng = std.Random.DefaultPrng.init(0);
+    var prng = std.Random.DefaultPrng.init(0);
 
-    var p = try PieceTree.init(alloc, prng, "hello\n");
+    var p = try PieceTree.init(alloc, &prng, "hello\n");
     defer p.deinit();
 
     try std.testing.expectEqualStrings("hello\n", p.node_contents(p.pieces.root));
@@ -432,9 +436,9 @@ test "PieceTree node_contents returns the contents of a node" {
 //               /\   /\
 //              1 3  5 7
 fn piece_tree_fixture(alloc: std.mem.Allocator) !PieceTree {
-    const prng = std.Random.DefaultPrng.init(0);
+    var prng = std.Random.DefaultPrng.init(0);
 
-    var p = try PieceTree.init(alloc, prng, "four\n");
+    var p = try PieceTree.init(alloc, &prng, "four\n");
     try p.add_buffer.appendSlice(alloc, "one\n");
     try p.add_buffer.appendSlice(alloc, "two\n");
     try p.add_buffer.appendSlice(alloc, "three\n");
@@ -457,32 +461,32 @@ fn piece_tree_fixture(alloc: std.mem.Allocator) !PieceTree {
 
     // 2
     const node2 = try alloc.create(PieceNode);
-    node2.* = .{ .buffer_type = .add, .start = 4, .len = 4, .left_subtree_len = 4, .parent = p.pieces.root, .newline_count = 1, .left_subtree_newline_count = 1 };
+    node2.* = .{ .buffer_type = .add, .start = 4, .len = 4, .left_subtree_len = 4, .parent = p.pieces.root, .newline_count = 1, .left_subtree_newline_count = 1, .priority = 0 };
     p.pieces.root.left = node2;
 
     // 1
     const node1 = try alloc.create(PieceNode);
-    node1.* = .{ .buffer_type = .add, .start = 0, .len = 4, .left_subtree_len = 0, .parent = node2, .newline_count = 1, .left_subtree_newline_count = 0 };
+    node1.* = .{ .buffer_type = .add, .start = 0, .len = 4, .left_subtree_len = 0, .parent = node2, .newline_count = 1, .left_subtree_newline_count = 0, .priority = 0 };
     p.pieces.root.left.?.left = node1;
 
     // 3
     const node3 = try alloc.create(PieceNode);
-    node3.* = .{ .buffer_type = .add, .start = 8, .len = 6, .left_subtree_len = 0, .parent = node2, .newline_count = 1, .left_subtree_newline_count = 0 };
+    node3.* = .{ .buffer_type = .add, .start = 8, .len = 6, .left_subtree_len = 0, .parent = node2, .newline_count = 1, .left_subtree_newline_count = 0, .priority = 0 };
     p.pieces.root.left.?.right = node3;
 
     // 6
     const node6 = try alloc.create(PieceNode);
-    node6.* = .{ .buffer_type = .add, .start = 19, .len = 4, .left_subtree_len = 5, .parent = p.pieces.root, .newline_count = 1, .left_subtree_newline_count = 1 };
+    node6.* = .{ .buffer_type = .add, .start = 19, .len = 4, .left_subtree_len = 5, .parent = p.pieces.root, .newline_count = 1, .left_subtree_newline_count = 1, .priority = 0 };
     p.pieces.root.right = node6;
 
     // 5
     const node5 = try alloc.create(PieceNode);
-    node5.* = .{ .buffer_type = .add, .start = 14, .len = 5, .left_subtree_len = 0, .parent = node6, .newline_count = 1, .left_subtree_newline_count = 0 };
+    node5.* = .{ .buffer_type = .add, .start = 14, .len = 5, .left_subtree_len = 0, .parent = node6, .newline_count = 1, .left_subtree_newline_count = 0, .priority = 0 };
     p.pieces.root.right.?.left = node5;
 
     // 7
     const node7 = try alloc.create(PieceNode);
-    node7.* = .{ .buffer_type = .add, .start = 23, .len = 6, .left_subtree_len = 0, .parent = node6, .newline_count = 1, .left_subtree_newline_count = 0 };
+    node7.* = .{ .buffer_type = .add, .start = 23, .len = 6, .left_subtree_len = 0, .parent = node6, .newline_count = 1, .left_subtree_newline_count = 0, .priority = 0 };
     p.pieces.root.right.?.right = node7;
 
     return p;
