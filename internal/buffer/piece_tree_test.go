@@ -143,3 +143,32 @@ func TestContentsReturnsFullTreeContent(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []byte("one\ntwo\nthree\nfour\nfive\nsix\nseven\n"), contents)
 }
+
+func TestBoundedContentsReturnsBetweenOffsets(t *testing.T) {
+	p := pieceTreeFixture()
+
+	// multiple pieces
+	contents, err := p.BoundedContents(6, 20)
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("o\nthree\nfour\nf"), contents)
+
+	// full range
+	contents, err = p.BoundedContents(0, 2000)
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("one\ntwo\nthree\nfour\nfive\nsix\nseven\n"), contents)
+
+	// single piece
+	contents, err = p.BoundedContents(0, 2)
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("on"), contents)
+
+	// exactly on boundaries
+	contents, err = p.BoundedContents(0, 4)
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("one\n"), contents)
+
+	// empty range
+	contents, err = p.BoundedContents(0, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, []byte(nil), contents)
+}

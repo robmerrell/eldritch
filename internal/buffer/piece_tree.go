@@ -90,8 +90,7 @@ func (p *PieceTree) nodeContents(node *node) []byte {
 	return p.addBuffer[node.start : node.start+node.len]
 }
 
-// Contents returns the entire set of contents stored in the piece tree as a slice
-// of bytes.
+// Contents returns the entire set of contents stored in the piece tree as a slice of bytes.
 func (p *PieceTree) Contents() ([]byte, error) {
 	var contents bytes.Buffer
 	err := p.collectContents(p.root, &contents)
@@ -110,6 +109,55 @@ func (p *PieceTree) collectContents(node *node, contents *bytes.Buffer) error {
 		}
 
 		p.collectContents(node.right, contents)
+	}
+
+	return nil
+}
+
+// BoundedContents returns the contents between the offsets [start, end)
+func (p *PieceTree) BoundedContents(start, end int) ([]byte, error) {
+	var contents bytes.Buffer
+	err := p.collectBoundedContents(p.root, &contents, start, end, 0)
+
+	return contents.Bytes(), err
+}
+
+// collectBoundedContents recurses through the tree and collect contents for nodes between start and end.
+func (p *PieceTree) collectBoundedContents(node *node, contents *bytes.Buffer, start, end, base int) error {
+	if node != nil {
+		contentStart := base + node.leftSubtreeLen
+		contentEnd := contentStart + node.len
+
+		// keep going left
+		if start < contentStart {
+			p.collectBoundedContents(node.left, contents, start, end, base)
+		}
+
+		// append data and trim if needed
+		lo := max(start, contentStart)
+		hi := min(end, contentEnd)
+		if lo < hi {
+			buf := p.nodeContents(node)
+
+			_, err := contents.Write(buf[lo-contentStart : hi-contentStart])
+			if err != nil {
+				return err
+			}
+		}
+
+		// go right
+		if end > contentEnd {
+			p.collectBoundedContents(node.right, contents, start, end, contentEnd)
+		}
+
+		// p.collectContents(node.left, contents)
+
+		// _, err := contents.Write(p.nodeContents(node))
+		// if err != nil {
+		// 	return err
+		// }
+
+		// p.collectContents(node.right, contents)
 	}
 
 	return nil
