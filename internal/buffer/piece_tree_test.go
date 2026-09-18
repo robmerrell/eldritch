@@ -172,3 +172,47 @@ func TestBoundedContentsReturnsBetweenOffsets(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []byte(nil), contents)
 }
+
+func TestNodeAtOffset(t *testing.T) {
+	p := pieceTreeFixture()
+
+	// out of bounds
+	nodeLoc := p.nodeAtOffset(p.root, 1000)
+	assert.Nil(t, nodeLoc.node)
+	assert.Equal(t, 0, nodeLoc.localOffset)
+
+	// one
+	nodeLoc = p.nodeAtOffset(p.root, 1)
+	assert.Equal(t, p.root.left.left, nodeLoc.node)
+	assert.Equal(t, 1, nodeLoc.localOffset)
+
+	// two
+	nodeLoc = p.nodeAtOffset(p.root, 4)
+	assert.Equal(t, p.root.left, nodeLoc.node)
+	assert.Equal(t, 0, nodeLoc.localOffset)
+
+	// three
+	nodeLoc = p.nodeAtOffset(p.root, 13)
+	assert.Equal(t, p.root.left.right, nodeLoc.node)
+	assert.Equal(t, 5, nodeLoc.localOffset)
+
+	// four
+	nodeLoc = p.nodeAtOffset(p.root, 15)
+	assert.Equal(t, p.root, nodeLoc.node)
+	assert.Equal(t, 1, nodeLoc.localOffset)
+
+	// five
+	nodeLoc = p.nodeAtOffset(p.root, 21)
+	assert.Equal(t, p.root.right.left, nodeLoc.node)
+	assert.Equal(t, 2, nodeLoc.localOffset)
+
+	// six
+	nodeLoc = p.nodeAtOffset(p.root, 25)
+	assert.Equal(t, p.root.right, nodeLoc.node)
+	assert.Equal(t, 1, nodeLoc.localOffset)
+
+	// seven
+	nodeLoc = p.nodeAtOffset(p.root, 31)
+	assert.Equal(t, p.root.right.right, nodeLoc.node)
+	assert.Equal(t, 3, nodeLoc.localOffset)
+}

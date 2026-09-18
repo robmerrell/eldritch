@@ -149,16 +149,34 @@ func (p *PieceTree) collectBoundedContents(node *node, contents *bytes.Buffer, s
 		if end > contentEnd {
 			p.collectBoundedContents(node.right, contents, start, end, contentEnd)
 		}
-
-		// p.collectContents(node.left, contents)
-
-		// _, err := contents.Write(p.nodeContents(node))
-		// if err != nil {
-		// 	return err
-		// }
-
-		// p.collectContents(node.right, contents)
 	}
 
 	return nil
+}
+
+// nodeLocation store a node and a local offset inside of that node
+type nodeLocation struct {
+	node        *node
+	localOffset int
+}
+
+// nodeAtOffset returns a nodeLocation for the node that countains the offset of bytes.
+func (p *PieceTree) nodeAtOffset(node *node, offset int) *nodeLocation {
+	if node != nil {
+		// keep going left
+		if offset < node.leftSubtreeLen {
+			return p.nodeAtOffset(node.left, offset)
+		}
+
+		// found on the node
+		local := offset - node.leftSubtreeLen
+		if local < node.len {
+			return &nodeLocation{node: node, localOffset: local}
+		}
+
+		// go right
+		return p.nodeAtOffset(node.right, offset-node.leftSubtreeLen-node.len)
+	}
+
+	return &nodeLocation{node: nil, localOffset: 0}
 }
