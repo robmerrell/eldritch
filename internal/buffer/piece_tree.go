@@ -2,7 +2,9 @@ package buffer
 
 import (
 	"bytes"
+	"errors"
 	"math/rand/v2"
+	"sort"
 )
 
 // the two types of buffers for the piece tree.
@@ -46,10 +48,9 @@ type PieceTree struct {
 	// treap of the pieces
 	root *node
 
-	// caches
-	// addLineStarts
-	// lastInsertNode
-	// lastInsertEnd
+	// caches to help writing to the last node
+	lastInsertNode *node
+	lastInsertEnd  int
 }
 
 // NewPieceTree create a new piece tree with an initial content. Original buffer is filled
@@ -179,4 +180,99 @@ func (p *PieceTree) nodeAtOffset(node *node, offset int) *nodeLocation {
 	}
 
 	return &nodeLocation{node: nil, localOffset: 0}
+}
+
+// Returns the upperBounds of an int list above the bounds
+func upperBounds(cont []int, bounds int) int {
+	return sort.Search(len(cont), func(i int) bool { return cont[i] > bounds })
+}
+
+// nodeNewlineCount returns the number of newlines in a piece using the buffer line starts so that
+// the buffer content doesn't need to be read.
+func (p *PieceTree) nodeNewlineCount(node *node) int {
+	var lineStarts []int
+	if node.bufferType == bufferTypeOriginal {
+		lineStarts = p.originalLineStarts
+	} else {
+		lineStarts = p.addLineStarts
+	}
+
+	end := node.start + node.len
+	return upperBounds(lineStarts, end) - upperBounds(lineStarts, node.start)
+}
+
+// updateCaches walks upt the tree and updates all size caches
+func (p *PieceTree) updateCaches(node *node, fromNode *node, delta int, newlineDelta int) {
+	if node != nil {
+		if fromNode == node.left {
+			node.leftSubtreeLen += delta
+			node.leftSubtreeNewlineCount += newlineDelta
+		}
+
+		p.updateCaches(node.parent, node, delta, newlineDelta)
+	}
+}
+
+// Insert inserts bytes into the piece tree. Nodes are split, created and balanced as needed.
+func (p *PieceTree) Insert(offset int, contents []byte) error {
+	if len(contents) < 1 {
+		return errors.New("Missing content for insert")
+	}
+
+	contentLen := len(contents)
+	addOffset := len(p.addBuffer)
+	p.addBuffer = append(p.addBuffer, contents...)
+
+	// add the line starts
+	newlineCount := 0
+	for i, byteVal := range contents {
+		if byteVal == '\n' {
+			newlineCount += 1
+			p.addLineStarts = append(p.addLineStarts, addOffset+i+1)
+		}
+	}
+
+	// try to grow the last written node
+	if p.lastInsertNode != nil {
+		node := p.lastInsertNode
+		if node.bufferType == bufferTypeAdd && (node.start+node.len == addOffset) && offset == p.lastInsertEnd {
+			node.len += contentLen
+			node.newlineCount += newlineCount
+			p.updateCaches(node.parent, node, contentLen, newlineCount)
+			p.lastInsertEnd += contentLen
+			return nil
+		}
+	}
+
+	nodeLoc := p.nodeAtOffset(p.root, offset)
+	if nodeLoc != nil {
+		if nodeLoc.localOffset == 0 {
+			// create a new piece and place on left side of parent and relink left child further down
+			newNode := &node{
+				bufferType:              bufferTypeAdd,
+				start:                   addOffset,
+				len:                     contentLen,
+				leftSubtreeLen:          nodeLoc.node.leftSubtreeLen,
+				newlineCount:            newlineCount,
+				leftSubtreeNewlineCount: nodeLoc.node.leftSubtreeNewlineCount,
+				parent:                  nodeLoc.node,
+				left:                    nodeLoc.node.left,
+				priority:                0,
+			}
+			nodeLoc.node.left = newNode
+
+			if newNode.left != nil {
+				newNode.left.parent = newNode
+			}
+
+			p.updateCaches(nodeLoc.node, newNode, contentLen, newlineCount)
+			p.lastInsertNode = newNode
+			p.lastInsertEnd = offset + contentLen
+		}
+
+	} else {
+		return errors.New("Out of bounds insert")
+	}
+
+	return nil
 }

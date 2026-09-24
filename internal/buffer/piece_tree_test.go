@@ -216,3 +216,55 @@ func TestNodeAtOffset(t *testing.T) {
 	assert.Equal(t, p.root.right.right, nodeLoc.node)
 	assert.Equal(t, 3, nodeLoc.localOffset)
 }
+
+func TestNodeNewlineCount(t *testing.T) {
+	p := pieceTreeFixture()
+
+	// every piece in the fixture holds exactly one line
+	assert.Equal(t, 1, p.nodeNewlineCount(p.root.left.left))
+	assert.Equal(t, 1, p.nodeNewlineCount(p.root.left))
+	assert.Equal(t, 1, p.nodeNewlineCount(p.root.left.right))
+	assert.Equal(t, 1, p.nodeNewlineCount(p.root))
+
+	// ending on the newline "one\n"
+	assert.Equal(t, 1, p.nodeNewlineCount(&node{bufferType: bufferTypeAdd, start: 0, len: 4}))
+
+	// starting past a newline "two"
+	assert.Equal(t, 0, p.nodeNewlineCount(&node{bufferType: bufferTypeAdd, start: 4, len: 3}))
+}
+
+func TestUpdateCaches(t *testing.T) {
+	p := pieceTreeFixture()
+
+	// left side traversal causes update (update node "1")
+	node := p.root.left.left
+	p.updateCaches(node.parent, node, 3, 2)
+	assert.Equal(t, 7, p.root.left.leftSubtreeLen)
+	assert.Equal(t, 17, p.root.leftSubtreeLen)
+	assert.Equal(t, 3, p.root.left.leftSubtreeNewlineCount)
+	assert.Equal(t, 5, p.root.leftSubtreeNewlineCount)
+
+	// right does not until a left side is used again (update node "3")
+	node = p.root.left.right
+	p.updateCaches(node.parent, node, 3, 2)
+	assert.Equal(t, 7, p.root.left.leftSubtreeLen)
+	assert.Equal(t, 20, p.root.leftSubtreeLen)
+	assert.Equal(t, 3, p.root.left.leftSubtreeNewlineCount)
+	assert.Equal(t, 7, p.root.leftSubtreeNewlineCount)
+
+	// subtree of right updates (update node "5")
+	node = p.root.right.left
+	p.updateCaches(node.parent, node, 5, 3)
+	assert.Equal(t, 10, p.root.right.leftSubtreeLen)
+	assert.Equal(t, 20, p.root.leftSubtreeLen)
+	assert.Equal(t, 4, p.root.right.leftSubtreeNewlineCount)
+	assert.Equal(t, 7, p.root.leftSubtreeNewlineCount)
+
+	// all rights do not update
+	node = p.root.right.right
+	p.updateCaches(node.parent, node, 5, 3)
+	assert.Equal(t, 10, p.root.right.leftSubtreeLen)
+	assert.Equal(t, 20, p.root.leftSubtreeLen)
+	assert.Equal(t, 4, p.root.right.leftSubtreeNewlineCount)
+	assert.Equal(t, 7, p.root.leftSubtreeNewlineCount)
+}
