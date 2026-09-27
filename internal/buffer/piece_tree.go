@@ -7,6 +7,11 @@ import (
 	"sort"
 )
 
+var (
+	ErrInvalidOffset = errors.New("Invalid offset")
+	ErrNoContent     = errors.New("No Content Given")
+)
+
 // the two types of buffers for the piece tree.
 type bufferType int
 
@@ -51,6 +56,9 @@ type PieceTree struct {
 	// caches to help writing to the last node
 	lastInsertNode *node
 	lastInsertEnd  int
+
+	// full content size
+	len int
 }
 
 // NewPieceTree create a new piece tree with an initial content. Original buffer is filled
@@ -70,6 +78,7 @@ func NewPieceTree(initial []byte) *PieceTree {
 		originalLineStarts: originalLineStarts,
 		addBuffer:          []byte{},
 		addLineStarts:      []int{0},
+		len:                len(initial),
 		root: &node{
 			bufferType:              bufferTypeOriginal,
 			start:                   0,
@@ -215,8 +224,12 @@ func (p *PieceTree) updateCaches(node *node, fromNode *node, delta int, newlineD
 
 // Insert inserts bytes into the piece tree. Nodes are split, created and balanced as needed.
 func (p *PieceTree) Insert(offset int, contents []byte) error {
+	if offset < 0 || offset > p.len {
+		return ErrInvalidOffset
+	}
+
 	if len(contents) < 1 {
-		return errors.New("Missing content for insert")
+		return ErrNoContent
 	}
 
 	contentLen := len(contents)
@@ -232,6 +245,8 @@ func (p *PieceTree) Insert(offset int, contents []byte) error {
 		}
 	}
 
+	p.len += contentLen
+
 	// try to grow the last written node
 	if p.lastInsertNode != nil {
 		node := p.lastInsertNode
@@ -242,6 +257,29 @@ func (p *PieceTree) Insert(offset int, contents []byte) error {
 			p.lastInsertEnd += contentLen
 			return nil
 		}
+	}
+
+	// end of the document
+	if offset == p.len-contentLen {
+		// find the node all the way to the right
+		right := p.root
+		for right.right != nil {
+			right = right.right
+		}
+
+		newNode := &node{
+			bufferType:   bufferTypeAdd,
+			start:        addOffset,
+			len:          contentLen,
+			newlineCount: newlineCount,
+			parent:       right,
+			priority:     0,
+		}
+		right.right = newNode
+
+		p.lastInsertNode = newNode
+		p.lastInsertEnd = offset + contentLen
+		return nil
 	}
 
 	nodeLoc := p.nodeAtOffset(p.root, offset)

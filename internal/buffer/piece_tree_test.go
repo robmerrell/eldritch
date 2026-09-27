@@ -1,6 +1,8 @@
 package buffer
 
 import (
+	"errors"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,6 +20,7 @@ import (
 func pieceTreeFixture() *PieceTree {
 	// buffer setup
 	p := NewPieceTree([]byte("four\n"))
+	p.len = 34
 	p.addBuffer = append(p.addBuffer, []byte("one\n")...)
 	p.addBuffer = append(p.addBuffer, []byte("two\n")...)
 	p.addBuffer = append(p.addBuffer, []byte("three\n")...)
@@ -352,4 +355,38 @@ func TestInsertContinueWriting(t *testing.T) {
 	parent := p.root.left.left
 	assert.Equal(t, 5, parent.len)
 	assert.Equal(t, 9, parent.parent.leftSubtreeLen)
+}
+
+func TestEnd(t *testing.T) {
+	p := NewPieceTree([]byte("hello"))
+	err := p.Insert(5, []byte(", world"))
+	assert.NoError(t, err)
+
+	contents, err := p.Contents()
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("hello, world"), contents)
+}
+
+func FuzzInsert(f *testing.F) {
+	f.Add(0, []byte("first"))
+
+	f.Fuzz(func(t *testing.T, offset int, contents []byte) {
+		p := NewPieceTree([]byte("hello"))
+		ref := []byte("hello")
+
+		err := p.Insert(offset, contents)
+		if !errors.Is(err, ErrInvalidOffset) && !errors.Is(err, ErrNoContent) {
+			assert.NoError(t, err)
+		}
+
+		if err != nil {
+			return
+		}
+
+		ref = slices.Insert(ref, offset, contents...)
+
+		treeContents, err := p.Contents()
+		assert.NoError(t, err)
+		assert.Equal(t, ref, treeContents)
+	})
 }
