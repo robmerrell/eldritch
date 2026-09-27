@@ -2,6 +2,7 @@ package buffer
 
 import (
 	"errors"
+	"os"
 	"slices"
 	"testing"
 
@@ -150,8 +151,12 @@ func TestContentsReturnsFullTreeContent(t *testing.T) {
 func TestBoundedContentsReturnsBetweenOffsets(t *testing.T) {
 	p := pieceTreeFixture()
 
+	// end before start
+	contents, err := p.BoundedContents(20, 2)
+	assert.ErrorIs(t, err, ErrInvalidRange)
+
 	// multiple pieces
-	contents, err := p.BoundedContents(6, 20)
+	contents, err = p.BoundedContents(6, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []byte("o\nthree\nfour\nf"), contents)
 
@@ -169,11 +174,6 @@ func TestBoundedContentsReturnsBetweenOffsets(t *testing.T) {
 	contents, err = p.BoundedContents(0, 4)
 	assert.NoError(t, err)
 	assert.Equal(t, []byte("one\n"), contents)
-
-	// empty range
-	contents, err = p.BoundedContents(0, 0)
-	assert.NoError(t, err)
-	assert.Equal(t, []byte(nil), contents)
 }
 
 func TestNodeAtOffset(t *testing.T) {
@@ -368,8 +368,6 @@ func TestEnd(t *testing.T) {
 }
 
 func FuzzInsert(f *testing.F) {
-	f.Add(0, []byte("first"))
-
 	f.Fuzz(func(t *testing.T, offset int, contents []byte) {
 		p := NewPieceTree([]byte("hello"))
 		ref := []byte("hello")
@@ -388,5 +386,30 @@ func FuzzInsert(f *testing.F) {
 		treeContents, err := p.Contents()
 		assert.NoError(t, err)
 		assert.Equal(t, ref, treeContents)
+	})
+}
+
+func FuzzReadBoundedContents(f *testing.F) {
+	content, err := os.ReadFile("testdata/dracula.txt")
+	assert.NoError(f, err)
+	contentLen := uint16(len(content))
+
+	f.Fuzz(func(t *testing.T, start, end uint16) {
+		// clamp start and end to the end of the document
+		if start > contentLen {
+			start = contentLen
+		}
+		if end > contentLen {
+			end = contentLen
+		}
+
+		if end <= start {
+			return
+		}
+
+		p := NewPieceTree(content)
+		contents, err := p.BoundedContents(int(start), int(end))
+		assert.NoError(t, err)
+		assert.Equal(t, content[start:end], contents)
 	})
 }

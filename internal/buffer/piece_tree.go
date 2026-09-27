@@ -10,6 +10,7 @@ import (
 var (
 	ErrInvalidOffset = errors.New("Invalid offset")
 	ErrNoContent     = errors.New("No Content Given")
+	ErrInvalidRange  = errors.New("End Is LTE Start")
 )
 
 // the two types of buffers for the piece tree.
@@ -126,6 +127,10 @@ func (p *PieceTree) collectContents(node *node, contents *bytes.Buffer) error {
 
 // BoundedContents returns the contents between the offsets [start, end)
 func (p *PieceTree) BoundedContents(start, end int) ([]byte, error) {
+	if end <= start {
+		return nil, ErrInvalidRange
+	}
+
 	var contents bytes.Buffer
 	err := p.collectBoundedContents(p.root, &contents, start, end, 0)
 
