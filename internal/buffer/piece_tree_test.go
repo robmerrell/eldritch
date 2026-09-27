@@ -268,3 +268,88 @@ func TestUpdateCaches(t *testing.T) {
 	assert.Equal(t, 4, p.root.right.leftSubtreeNewlineCount)
 	assert.Equal(t, 7, p.root.leftSubtreeNewlineCount)
 }
+
+func TestInsertAtBeginningOfPiece(t *testing.T) {
+	p := pieceTreeFixture()
+
+	// split nodes - adds "2" to the beginning of "two"
+	err := p.Insert(4, []byte("2"))
+	assert.NoError(t, err)
+
+	contents, err := p.Contents()
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("one\n2two\nthree\nfour\nfive\nsix\nseven\n"), contents)
+
+	// test the node setup
+	newNode := p.root.left
+	assert.Equal(t, p.root, newNode.parent)
+	assert.Equal(t, 5, newNode.leftSubtreeLen)
+	assert.Equal(t, 15, newNode.parent.leftSubtreeLen)
+}
+
+func TestInsertInMiddleOfPiece(t *testing.T) {
+	p := pieceTreeFixture()
+
+	// splits nodes adds "4" to the middle of "four"
+	err := p.Insert(16, []byte("4"))
+	assert.NoError(t, err)
+
+	contents, err := p.Contents()
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("one\ntwo\nthree\nfo4ur\nfive\nsix\nseven\n"), contents)
+
+	// updated node
+	updated := p.root
+	assert.Equal(t, 1, updated.len)
+	assert.Equal(t, 16, updated.leftSubtreeLen)
+
+	// new left
+	assert.Equal(t, 2, updated.left.len)
+	assert.Equal(t, 14, updated.left.leftSubtreeLen)
+
+	// new right
+	assert.Equal(t, 3, updated.right.len)
+	assert.Equal(t, 0, updated.right.leftSubtreeLen)
+}
+
+func TestInsertAtEndOfPiece(t *testing.T) {
+	p := pieceTreeFixture()
+
+	// splits nodes adds "1" to the end of "one"
+	err := p.Insert(3, []byte("1"))
+	assert.NoError(t, err)
+
+	contents, err := p.Contents()
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("one1\ntwo\nthree\nfour\nfive\nsix\nseven\n"), contents)
+
+	// parent
+	parent := p.root.left.left
+	assert.Equal(t, 1, parent.len)
+	assert.Equal(t, 3, parent.leftSubtreeLen)
+
+	// left
+	assert.Equal(t, 3, parent.left.len)
+	assert.Equal(t, 0, parent.left.leftSubtreeLen)
+}
+
+func TestInsertContinueWriting(t *testing.T) {
+	p := pieceTreeFixture()
+
+	// splits nodes, adds "1" to the end of "one"
+	err := p.Insert(3, []byte("1"))
+	assert.NoError(t, err)
+
+	// keeps inserting onto it
+	err = p.Insert(4, []byte("2345"))
+	assert.NoError(t, err)
+
+	contents, err := p.Contents()
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("one12345\ntwo\nthree\nfour\nfive\nsix\nseven\n"), contents)
+
+	// nodes
+	parent := p.root.left.left
+	assert.Equal(t, 5, parent.len)
+	assert.Equal(t, 9, parent.parent.leftSubtreeLen)
+}

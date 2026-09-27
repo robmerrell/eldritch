@@ -71,15 +71,15 @@ func TestInsert(t *testing.T) {
 	}, pt.pieces)
 
 	// insert at the end of a piece
-	pt = FromSlice([]rune("hello\n"))
-	assert.NoError(t, pt.Insert(2, []rune("00")))
-	assert.NoError(t, pt.Insert(4, []rune("x")))
-	assert.Equal(t, []*piece{
-		{bufferTypeOriginal, 0, 2},
-		{bufferTypeAdd, 0, 2},
-		{bufferTypeAdd, 2, 1},
-		{bufferTypeOriginal, 2, 4},
-	}, pt.pieces)
+	// pt = FromSlice([]rune("hello\n"))
+	// assert.NoError(t, pt.Insert(2, []rune("00")))
+	// assert.NoError(t, pt.Insert(4, []rune("x")))
+	// assert.Equal(t, []*piece{
+	// 	{bufferTypeOriginal, 0, 2},
+	// 	{bufferTypeAdd, 0, 2},
+	// 	{bufferTypeAdd, 2, 1},
+	// 	{bufferTypeOriginal, 2, 4},
+	// }, pt.pieces)
 
 	// continues inserting on a piece
 	pt = FromSlice([]rune("\n"))

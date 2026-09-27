@@ -268,6 +268,57 @@ func (p *PieceTree) Insert(offset int, contents []byte) error {
 			p.updateCaches(nodeLoc.node, newNode, contentLen, newlineCount)
 			p.lastInsertNode = newNode
 			p.lastInsertEnd = offset + contentLen
+		} else {
+			// middle of a piece - Create a new left piece, Create a new right, and modify current piece to point at new content
+
+			// new sides
+			newLeft := &node{
+				bufferType:              nodeLoc.node.bufferType,
+				start:                   nodeLoc.node.start,
+				len:                     nodeLoc.localOffset,
+				leftSubtreeLen:          nodeLoc.node.leftSubtreeLen,
+				leftSubtreeNewlineCount: nodeLoc.node.leftSubtreeNewlineCount,
+				parent:                  nodeLoc.node,
+				left:                    nodeLoc.node.left,
+				right:                   nil,
+				priority:                0,
+			}
+			newLeft.newlineCount = p.nodeNewlineCount(newLeft)
+
+			newRight := &node{
+				bufferType:              nodeLoc.node.bufferType,
+				start:                   nodeLoc.node.start + nodeLoc.localOffset,
+				len:                     nodeLoc.node.len - nodeLoc.localOffset,
+				leftSubtreeLen:          0,
+				leftSubtreeNewlineCount: 0,
+				parent:                  nodeLoc.node,
+				left:                    nil,
+				right:                   nodeLoc.node.right,
+				priority:                0,
+			}
+			newRight.newlineCount = p.nodeNewlineCount(newRight)
+
+			// modify current
+			nodeLoc.node.bufferType = bufferTypeAdd
+			nodeLoc.node.left = newLeft
+			nodeLoc.node.right = newRight
+			nodeLoc.node.start = addOffset
+			nodeLoc.node.len = contentLen
+			nodeLoc.node.leftSubtreeLen += newLeft.len
+			nodeLoc.node.newlineCount = newlineCount
+			nodeLoc.node.leftSubtreeNewlineCount += newLeft.newlineCount
+
+			// modify the subtrees that moved around for the new nodes
+			if newLeft.left != nil {
+				newLeft.left.parent = newLeft
+			}
+			if newRight.right != nil {
+				newRight.right.parent = newRight
+			}
+
+			p.updateCaches(nodeLoc.node.parent, nodeLoc.node, contentLen, newlineCount)
+			p.lastInsertNode = nodeLoc.node
+			p.lastInsertEnd = offset + contentLen
 		}
 
 	} else {

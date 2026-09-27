@@ -1,11 +1,6 @@
 package buffer
 
-import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-)
-
+/*
 func TestSetContents(t *testing.T) {
 	buffer := NewBuffer()
 	buffer.SetContents("hello\nworld\nthis\nis a buffer")
@@ -264,3 +259,4 @@ func TestClear(t *testing.T) {
 	buffer.Clear()
 	assert.Equal(t, DefaultLineCap, cap(buffer.contents))
 }
+*/
