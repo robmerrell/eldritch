@@ -124,6 +124,10 @@ func pieceTreeFixture() *PieceTree {
 	return p
 }
 
+func assertValid(t *testing.T, p *PieceTree) {
+	assert.NoError(t, p.validate())
+}
+
 func TestNewPieceTreeBufferInit(t *testing.T) {
 	p := NewPieceTree([]byte("one\ntwo\nthree\n"))
 

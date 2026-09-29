@@ -3,6 +3,7 @@ package buffer
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"math/rand/v2"
 	"sort"
 )
@@ -225,6 +226,55 @@ func (p *PieceTree) updateCaches(node *node, fromNode *node, delta int, newlineD
 
 		p.updateCaches(node.parent, node, delta, newlineDelta)
 	}
+}
+
+// validate checks the tree structure against caches. This shouldn't be used from the application
+// but used in tests.
+func (p *PieceTree) validate() error {
+	_, _, err := p.validateNode(p.root)
+	return err
+}
+
+func (p *PieceTree) validateNode(node *node) (leftSubtreeLen, leftSubtreeNewlineCount int, err error) {
+	if node != nil {
+		// go left
+		leftLen, leftCount, err := p.validateNode(node.left)
+		if err != nil {
+			return leftLen, leftCount, err
+		}
+
+		// go right
+		rightLen, rightCount, err := p.validateNode(node.right)
+		if err != nil {
+			return rightLen, rightCount, err
+		}
+
+		// check the links
+		if node.left != nil {
+			if node.left.parent != node {
+				// use the starts to identify the nodes
+				return 0, 0, fmt.Errorf("Mismatched parent (%d) and left (%d)", node.start, node.left.start)
+			}
+		}
+		if node.right != nil {
+			if node.right.parent != node {
+				// use the starts to identify the nodes
+				return 0, 0, fmt.Errorf("Mismatched parent (%d) and right (%d)", node.start, node.right.start)
+			}
+		}
+
+		// check caches
+		if node.leftSubtreeLen != leftLen {
+			return 0, 0, fmt.Errorf("Len cache mismatch on (%d) node %d != calculated %d", node.start, node.leftSubtreeLen, leftLen)
+		}
+		if node.leftSubtreeNewlineCount != leftCount {
+			return 0, 0, fmt.Errorf("Len cache mismatch on (%d) node %d != calculated %d", node.start, node.leftSubtreeNewlineCount, leftLen)
+		}
+
+		return leftLen + node.len + rightLen, leftCount + node.newlineCount + rightCount, nil
+	}
+
+	return 0, 0, nil
 }
 
 // Insert inserts bytes into the piece tree. Nodes are split, created and balanced as needed.
