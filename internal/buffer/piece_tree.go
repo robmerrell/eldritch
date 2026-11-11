@@ -61,6 +61,10 @@ type PieceTree struct {
 
 	// full content size
 	len int
+
+	// function to use to determine the priority. Handy for having
+	// some tests that need a certain structure.
+	priorityFunc func() int
 }
 
 // NewPieceTree create a new piece tree with an initial content. Original buffer is filled
@@ -73,7 +77,8 @@ func NewPieceTree(initial []byte) *PieceTree {
 			originalLineStarts = append(originalLineStarts, i+1)
 		}
 	}
-	rand.Int()
+
+	priorityFunc := rand.Int
 
 	return &PieceTree{
 		originalBuffer:     initial,
@@ -81,6 +86,7 @@ func NewPieceTree(initial []byte) *PieceTree {
 		addBuffer:          []byte{},
 		addLineStarts:      []int{0},
 		len:                len(initial),
+		priorityFunc:       priorityFunc,
 		root: &node{
 			bufferType:              bufferTypeOriginal,
 			start:                   0,
@@ -88,7 +94,7 @@ func NewPieceTree(initial []byte) *PieceTree {
 			leftSubtreeLen:          0,
 			newlineCount:            len(originalLineStarts) - 1,
 			leftSubtreeNewlineCount: 0,
-			priority:                rand.Int(),
+			priority:                priorityFunc(),
 		},
 	}
 }
@@ -328,7 +334,7 @@ func (p *PieceTree) Insert(offset int, contents []byte) error {
 			len:          contentLen,
 			newlineCount: newlineCount,
 			parent:       right,
-			priority:     0,
+			priority:     p.priorityFunc(),
 		}
 		right.right = newNode
 
@@ -350,7 +356,7 @@ func (p *PieceTree) Insert(offset int, contents []byte) error {
 				leftSubtreeNewlineCount: nodeLoc.node.leftSubtreeNewlineCount,
 				parent:                  nodeLoc.node,
 				left:                    nodeLoc.node.left,
-				priority:                0,
+				priority:                p.priorityFunc(),
 			}
 			nodeLoc.node.left = newNode
 
@@ -374,7 +380,7 @@ func (p *PieceTree) Insert(offset int, contents []byte) error {
 				parent:                  nodeLoc.node,
 				left:                    nodeLoc.node.left,
 				right:                   nil,
-				priority:                0,
+				priority:                p.priorityFunc(),
 			}
 			newLeft.newlineCount = p.nodeNewlineCount(newLeft)
 
@@ -387,7 +393,7 @@ func (p *PieceTree) Insert(offset int, contents []byte) error {
 				parent:                  nodeLoc.node,
 				left:                    nil,
 				right:                   nodeLoc.node.right,
-				priority:                0,
+				priority:                p.priorityFunc(),
 			}
 			newRight.newlineCount = p.nodeNewlineCount(newRight)
 

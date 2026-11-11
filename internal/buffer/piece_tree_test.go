@@ -21,6 +21,9 @@ import (
 func pieceTreeFixture() *PieceTree {
 	// buffer setup
 	p := NewPieceTree([]byte("four\n"))
+	p.priorityFunc = func() int {
+		return 0
+	}
 	p.len = 34
 	p.addBuffer = append(p.addBuffer, []byte("one\n")...)
 	p.addBuffer = append(p.addBuffer, []byte("two\n")...)
