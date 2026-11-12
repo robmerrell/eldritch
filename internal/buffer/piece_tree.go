@@ -426,3 +426,53 @@ func (p *PieceTree) Insert(offset int, contents []byte) error {
 
 	return nil
 }
+
+// swap out child nodes and set the root if necessary
+func (p *PieceTree) replaceChild(parent, oldChild, newChild *node) {
+	if parent == nil {
+		p.root = newChild
+	} else if parent.left == oldChild {
+		parent.left = newChild
+	} else {
+		parent.right = newChild
+	}
+	if newChild != nil {
+		newChild.parent = parent
+	}
+}
+
+// compare the node with its parent and rotate right if needed
+func (p *PieceTree) rotateRight(node *node) {
+	left := node.left
+	grandChild := left.right
+
+	node.left = grandChild
+	if grandChild != nil {
+		grandChild.parent = node
+	}
+
+	p.replaceChild(node.parent, node, left)
+	left.right = node
+	node.parent = left
+
+	// update caches of the rotated node there's no size changes so do it inline
+	node.leftSubtreeLen -= left.leftSubtreeLen + left.len
+	node.leftSubtreeNewlineCount -= left.leftSubtreeNewlineCount + left.newlineCount
+}
+
+func (p *PieceTree) rotateLeft(node *node) {
+	right := node.right
+	grandChild := right.left
+
+	node.right = grandChild
+	if grandChild != nil {
+		grandChild.parent = node
+	}
+
+	p.replaceChild(node.parent, node, right)
+	right.left = node
+	node.parent = right
+
+	right.leftSubtreeLen += node.leftSubtreeLen + node.len
+	right.leftSubtreeNewlineCount += node.leftSubtreeNewlineCount + node.newlineCount
+}

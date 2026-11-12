@@ -420,3 +420,34 @@ func FuzzReadBoundedContents(f *testing.F) {
 		assert.Equal(t, content[start:end], contents)
 	})
 }
+
+func TestRotateRight(t *testing.T) {
+	p := pieceTreeFixture()
+	four := p.root
+	two := four.left
+	p.rotateRight(four)
+
+	assert.Equal(t, two, p.root)
+	assert.Nil(t, two.parent)
+	assert.Equal(t, 6, four.leftSubtreeLen)
+	assert.Equal(t, 1, four.leftSubtreeNewlineCount)
+	assert.Equal(t, 4, two.leftSubtreeLen)
+	assertValid(t, p)
+
+	c, _ := p.Contents()
+	assert.Equal(t, []byte("one\ntwo\nthree\nfour\nfive\nsix\nseven\n"), c)
+}
+
+func TestRotateLeft(t *testing.T) {
+	p := pieceTreeFixture()
+	six := p.root.right
+	p.rotateLeft(p.root)
+
+	assert.Equal(t, six, p.root)
+	assert.Equal(t, 24, six.leftSubtreeLen)
+	assert.Equal(t, 5, six.leftSubtreeNewlineCount)
+	assertValid(t, p)
+
+	c, _ := p.Contents()
+	assert.Equal(t, []byte("one\ntwo\nthree\nfour\nfive\nsix\nseven\n"), c)
+}
