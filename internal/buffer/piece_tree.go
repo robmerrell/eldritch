@@ -257,12 +257,24 @@ func (p *PieceTree) validateNode(node *node) (leftSubtreeLen, leftSubtreeNewline
 
 		// check the links
 		if node.left != nil {
+			// check left priority
+			if node.left.priority > node.priority {
+				return 0, 0, fmt.Errorf("Invalid priority (%d) and left (%d)", node.start, node.left.start)
+			}
+
+			// check left link
 			if node.left.parent != node {
 				// use the starts to identify the nodes
 				return 0, 0, fmt.Errorf("Mismatched parent (%d) and left (%d)", node.start, node.left.start)
 			}
 		}
 		if node.right != nil {
+			// check right priority
+			if node.right.priority > node.priority {
+				return 0, 0, fmt.Errorf("Invalid priority (%d) and right (%d)", node.start, node.right.start)
+			}
+
+			// check right link
 			if node.right.parent != node {
 				// use the starts to identify the nodes
 				return 0, 0, fmt.Errorf("Mismatched parent (%d) and right (%d)", node.start, node.right.start)
@@ -340,6 +352,7 @@ func (p *PieceTree) Insert(offset int, contents []byte) error {
 
 		p.lastInsertNode = newNode
 		p.lastInsertEnd = offset + contentLen
+		p.balanceHeap(newNode)
 		return nil
 	}
 
@@ -367,6 +380,7 @@ func (p *PieceTree) Insert(offset int, contents []byte) error {
 			p.updateCaches(nodeLoc.node, newNode, contentLen, newlineCount)
 			p.lastInsertNode = newNode
 			p.lastInsertEnd = offset + contentLen
+			p.balanceHeap(newNode)
 		} else {
 			// middle of a piece - Create a new left piece, Create a new right, and modify current piece to point at new content
 
@@ -418,6 +432,9 @@ func (p *PieceTree) Insert(offset int, contents []byte) error {
 			p.updateCaches(nodeLoc.node.parent, nodeLoc.node, contentLen, newlineCount)
 			p.lastInsertNode = nodeLoc.node
 			p.lastInsertEnd = offset + contentLen
+
+			p.balanceHeap(newLeft)
+			p.balanceHeap(newRight)
 		}
 
 	} else {
@@ -427,7 +444,7 @@ func (p *PieceTree) Insert(offset int, contents []byte) error {
 	return nil
 }
 
-// swap out child nodes and set the root if necessary
+// Swap out child nodes and set the root if necessary
 func (p *PieceTree) replaceChild(parent, oldChild, newChild *node) {
 	if parent == nil {
 		p.root = newChild
@@ -441,7 +458,7 @@ func (p *PieceTree) replaceChild(parent, oldChild, newChild *node) {
 	}
 }
 
-// compare the node with its parent and rotate right if needed
+// Compare the node with its parent and rotate if needed
 func (p *PieceTree) rotateRight(node *node) {
 	left := node.left
 	grandChild := left.right
@@ -476,3 +493,61 @@ func (p *PieceTree) rotateLeft(node *node) {
 	right.leftSubtreeLen += node.leftSubtreeLen + node.len
 	right.leftSubtreeNewlineCount += node.leftSubtreeNewlineCount + node.newlineCount
 }
+
+// Calls rotate on the node up until it is in the proper place in the treap.
+func (p *PieceTree) balanceHeap(node *node) {
+	// check down first -- the node might sit above nodes that out rank it
+	for {
+		child := node.left
+
+		if node.right != nil && (child == nil || node.right.priority > child.priority) {
+			child = node.right
+		}
+
+		if child == nil || child.priority <= node.priority {
+			break
+		}
+
+		if child == node.left {
+			p.rotateRight(node)
+		} else {
+			p.rotateLeft(node)
+		}
+	}
+
+	// check up
+	for node.parent != nil && node.priority > node.parent.priority {
+		if node == node.parent.left {
+			p.rotateRight(node.parent)
+		} else {
+			p.rotateLeft(node.parent)
+		}
+	}
+}
+
+// func (p *PieceTree) restoreHeap(n *node) {
+// 	// sift down: n may sit above a subtree with higher priorities
+// 	for {
+// 		c := n.left
+// 		if n.right != nil && (c == nil || n.right.priority > c.priority) {
+// 			c = n.right
+// 		}
+// 		if c == nil || c.priority <= n.priority {
+// 			break
+// 		}
+// 		if c == n.left {
+// 			p.rotateRight(n)
+// 		} else {
+// 			p.rotateLeft(n)
+// 		}
+// 	}
+
+// 	// bubble up: rotate the PARENT to lift n
+// 	for n.parent != nil && n.priority > n.parent.priority {
+// 		if n == n.parent.left {
+// 			p.rotateRight(n.parent)
+// 		} else {
+// 			p.rotateLeft(n.parent)
+// 		}
+// 	}
+// }

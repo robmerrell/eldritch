@@ -21,6 +21,7 @@ import (
 func pieceTreeFixture() *PieceTree {
 	// buffer setup
 	p := NewPieceTree([]byte("four\n"))
+	p.root.priority = 0
 	p.priorityFunc = func() int {
 		return 0
 	}
@@ -295,6 +296,7 @@ func TestInsertAtBeginningOfPiece(t *testing.T) {
 	assert.Equal(t, p.root, newNode.parent)
 	assert.Equal(t, 5, newNode.leftSubtreeLen)
 	assert.Equal(t, 15, newNode.parent.leftSubtreeLen)
+	assertValid(t, p)
 }
 
 func TestInsertInMiddleOfPiece(t *testing.T) {
@@ -320,6 +322,8 @@ func TestInsertInMiddleOfPiece(t *testing.T) {
 	// new right
 	assert.Equal(t, 3, updated.right.len)
 	assert.Equal(t, 0, updated.right.leftSubtreeLen)
+
+	assertValid(t, p)
 }
 
 func TestInsertAtEndOfPiece(t *testing.T) {
@@ -341,6 +345,8 @@ func TestInsertAtEndOfPiece(t *testing.T) {
 	// left
 	assert.Equal(t, 3, parent.left.len)
 	assert.Equal(t, 0, parent.left.leftSubtreeLen)
+
+	assertValid(t, p)
 }
 
 func TestInsertContinueWriting(t *testing.T) {
@@ -362,6 +368,8 @@ func TestInsertContinueWriting(t *testing.T) {
 	parent := p.root.left.left
 	assert.Equal(t, 5, parent.len)
 	assert.Equal(t, 9, parent.parent.leftSubtreeLen)
+
+	assertValid(t, p)
 }
 
 func TestEnd(t *testing.T) {
@@ -372,6 +380,7 @@ func TestEnd(t *testing.T) {
 	contents, err := p.Contents()
 	assert.NoError(t, err)
 	assert.Equal(t, []byte("hello, world"), contents)
+	assertValid(t, p)
 }
 
 func FuzzInsert(f *testing.F) {
@@ -393,6 +402,7 @@ func FuzzInsert(f *testing.F) {
 		treeContents, err := p.Contents()
 		assert.NoError(t, err)
 		assert.Equal(t, ref, treeContents)
+		assertValid(t, p)
 	})
 }
 
