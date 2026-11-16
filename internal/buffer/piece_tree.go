@@ -222,6 +222,80 @@ func (p *PieceTree) nodeNewlineCount(node *node) int {
 	return upperBounds(lineStarts, end) - upperBounds(lineStarts, node.start)
 }
 
+// newlinesBefore counts the newlines before the given offset.
+func (p *PieceTree) newlinesBefore(node *node, offset int) int {
+	if node == nil {
+		return 0
+	}
+
+	// keep going left
+	if offset < node.leftSubtreeLen {
+		return p.newlinesBefore(node.left, offset)
+	}
+
+	// found on the node
+	local := offset - node.leftSubtreeLen
+	if local <= node.len {
+		var lineStarts []int
+		if node.bufferType == bufferTypeOriginal {
+			lineStarts = p.originalLineStarts
+		} else {
+			lineStarts = p.addLineStarts
+		}
+
+		prefix := upperBounds(lineStarts, node.start+local) - upperBounds(lineStarts, node.start)
+		return node.leftSubtreeNewlineCount + prefix
+	}
+
+	// go right
+	return node.leftSubtreeNewlineCount +
+		node.newlineCount +
+		p.newlinesBefore(node.right, local-node.len)
+}
+
+// lineStartOffset returns the offset just after the newline in a subtree.
+// The boolean is if it is a true 0 or the node didn't exist.
+func (p *PieceTree) lineStartOffset(node *node, row int) (int, bool) {
+	if row == 0 {
+		return 0, true
+	}
+	if node == nil {
+		return 0, false
+	}
+
+	// keep going left
+	if row <= node.leftSubtreeNewlineCount {
+		return p.lineStartOffset(node.left, row)
+	}
+
+	// found on the node
+	row -= node.leftSubtreeNewlineCount
+	if row <= node.newlineCount {
+		var lineStarts []int
+		if node.bufferType == bufferTypeOriginal {
+			lineStarts = p.originalLineStarts
+		} else {
+			lineStarts = p.addLineStarts
+		}
+
+		index := upperBounds(lineStarts, node.start)
+		return node.leftSubtreeLen + lineStarts[index+row-1] - node.start, true
+	}
+
+	// go right
+	offset, ok := p.lineStartOffset(node.right, row-node.newlineCount)
+	return node.leftSubtreeLen + node.len + offset, ok
+}
+
+// OffsetToCoords converts a document offset to coordinates.
+func (p *PieceTree) OffsetToCoords(offset int) Coords {
+	// TODO: This could probably be made much more effecient.
+	row := p.newlinesBefore(p.root, offset)
+	lineStart, _ := p.lineStartOffset(p.root, row)
+
+	return Coords{Line: row + 1, Col: offset - lineStart + 1}
+}
+
 // updateCaches walks upt the tree and updates all size caches
 func (p *PieceTree) updateCaches(node *node, fromNode *node, delta int, newlineDelta int) {
 	if node != nil {
@@ -524,30 +598,3 @@ func (p *PieceTree) balanceHeap(node *node) {
 		}
 	}
 }
-
-// func (p *PieceTree) restoreHeap(n *node) {
-// 	// sift down: n may sit above a subtree with higher priorities
-// 	for {
-// 		c := n.left
-// 		if n.right != nil && (c == nil || n.right.priority > c.priority) {
-// 			c = n.right
-// 		}
-// 		if c == nil || c.priority <= n.priority {
-// 			break
-// 		}
-// 		if c == n.left {
-// 			p.rotateRight(n)
-// 		} else {
-// 			p.rotateLeft(n)
-// 		}
-// 	}
-
-// 	// bubble up: rotate the PARENT to lift n
-// 	for n.parent != nil && n.priority > n.parent.priority {
-// 		if n == n.parent.left {
-// 			p.rotateRight(n.parent)
-// 		} else {
-// 			p.rotateLeft(n.parent)
-// 		}
-// 	}
-// }

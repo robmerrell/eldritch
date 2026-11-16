@@ -280,6 +280,31 @@ func TestUpdateCaches(t *testing.T) {
 	assert.Equal(t, 7, p.root.leftSubtreeNewlineCount)
 }
 
+func TestOffsetToCoords(t *testing.T) {
+	p := pieceTreeFixture()
+
+	// beginning of document
+	assert.Equal(t, Coords{Line: 1, Col: 1}, p.OffsetToCoords(0))
+
+	// middle of piece
+	assert.Equal(t, Coords{Line: 1, Col: 3}, p.OffsetToCoords(2))
+
+	// newline at the end of a line
+	assert.Equal(t, Coords{Line: 1, Col: 4}, p.OffsetToCoords(3))
+
+	// piece boundary
+	assert.Equal(t, Coords{Line: 2, Col: 1}, p.OffsetToCoords(4))
+
+	// root start
+	assert.Equal(t, Coords{Line: 4, Col: 1}, p.OffsetToCoords(14))
+
+	// right most
+	assert.Equal(t, Coords{Line: 7, Col: 1}, p.OffsetToCoords(28))
+
+	// last empty line
+	assert.Equal(t, Coords{Line: 8, Col: 1}, p.OffsetToCoords(34))
+}
+
 func TestInsertAtBeginningOfPiece(t *testing.T) {
 	p := pieceTreeFixture()
 
