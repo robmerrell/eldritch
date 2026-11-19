@@ -305,6 +305,39 @@ func TestOffsetToCoords(t *testing.T) {
 	assert.Equal(t, Coords{Line: 8, Col: 1}, p.OffsetToCoords(34))
 }
 
+func TestCoordsToOffset(t *testing.T) {
+	p := pieceTreeFixture()
+
+	// beginning of document
+	coords, err := p.CoordsToOffset(Coords{Line: 1, Col: 1})
+	assert.Equal(t, 0, coords)
+	assert.NoError(t, err)
+
+	// middle of piece
+	coords, _ = p.CoordsToOffset(Coords{Line: 1, Col: 3})
+	assert.Equal(t, 2, coords)
+
+	// newline at the end of a line
+	coords, _ = p.CoordsToOffset(Coords{Line: 1, Col: 4})
+	assert.Equal(t, 3, coords)
+
+	// piece boundary
+	coords, _ = p.CoordsToOffset(Coords{Line: 2, Col: 1})
+	assert.Equal(t, 4, coords)
+
+	// root start
+	coords, _ = p.CoordsToOffset(Coords{Line: 4, Col: 1})
+	assert.Equal(t, 14, coords)
+
+	// right most
+	coords, _ = p.CoordsToOffset(Coords{Line: 7, Col: 1})
+	assert.Equal(t, 28, coords)
+
+	// last empty line
+	coords, _ = p.CoordsToOffset(Coords{Line: 8, Col: 1})
+	assert.Equal(t, 34, coords)
+}
+
 func TestInsertAtBeginningOfPiece(t *testing.T) {
 	p := pieceTreeFixture()
 

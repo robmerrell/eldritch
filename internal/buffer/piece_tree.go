@@ -289,11 +289,38 @@ func (p *PieceTree) lineStartOffset(node *node, row int) (int, bool) {
 
 // OffsetToCoords converts a document offset to coordinates.
 func (p *PieceTree) OffsetToCoords(offset int) Coords {
-	// TODO: This could probably be made much more effecient.
 	row := p.newlinesBefore(p.root, offset)
 	lineStart, _ := p.lineStartOffset(p.root, row)
 
+	// TODO: using an offset out of bounds just returns garbage I need some error checking
 	return Coords{Line: row + 1, Col: offset - lineStart + 1}
+}
+
+// CoordsToOffset convert document coordinates to an offset.
+func (p *PieceTree) CoordsToOffset(coords Coords) (int, error) {
+	if coords.Line < 1 || coords.Col < 1 {
+		return 0, fmt.Errorf("Invalid coordinates %d, %d", coords.Line, coords.Col)
+	}
+
+	// coords are 1 based and the tree is 0
+	line := coords.Line - 1
+	col := coords.Col - 1
+
+	lineStart, ok := p.lineStartOffset(p.root, line)
+	if !ok {
+		return 0, fmt.Errorf("Invalid coordinates %d, %d", coords.Line, coords.Col)
+	}
+
+	lineEnd := p.len
+	if nextLineStart, ok := p.lineStartOffset(p.root, line+1); ok {
+		lineEnd = nextLineStart - 1
+	}
+
+	if lineStart+col > lineEnd {
+		return 0, fmt.Errorf("Invalid coordinates %d, %d", coords.Line, coords.Col)
+	}
+
+	return lineStart + col, nil
 }
 
 // updateCaches walks upt the tree and updates all size caches
