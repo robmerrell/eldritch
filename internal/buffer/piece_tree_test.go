@@ -336,6 +336,13 @@ func TestCoordsToOffset(t *testing.T) {
 	// last empty line
 	coords, _ = p.CoordsToOffset(Coords{Line: 8, Col: 1})
 	assert.Equal(t, 34, coords)
+
+	// invalid coords
+	_, err = p.CoordsToOffset(Coords{Line: 100, Col: 1})
+	assert.Error(t, err)
+
+	_, err = p.CoordsToOffset(Coords{Line: 1, Col: 10})
+	assert.Error(t, err)
 }
 
 func TestInsertAtBeginningOfPiece(t *testing.T) {
