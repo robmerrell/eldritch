@@ -2,6 +2,7 @@ package buffer
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"slices"
 	"testing"
@@ -494,6 +495,31 @@ func FuzzReadBoundedContents(f *testing.F) {
 		assert.NoError(t, err)
 		assert.Equal(t, content[start:end], contents)
 	})
+}
+
+func TestDeleteTrimBeginning(t *testing.T) {
+	p := pieceTreeFixture()
+
+	err := p.Delete(0, 2)
+	assert.NoError(t, err)
+
+	contents, err := p.Contents()
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("e\ntwo\nthree\nfour\nfive\nsix\nseven\n"), contents)
+	assertValid(t, p)
+}
+
+func TestDeleteTrimEnd(t *testing.T) {
+	p := pieceTreeFixture()
+
+	err := p.Delete(1, 3)
+	assert.NoError(t, err)
+
+	contents, err := p.Contents()
+	assert.NoError(t, err)
+
+	fmt.Println(string(contents))
+
 }
 
 func TestRotateRight(t *testing.T) {

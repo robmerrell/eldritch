@@ -12,6 +12,8 @@ var (
 	ErrInvalidOffset = errors.New("Invalid offset")
 	ErrNoContent     = errors.New("No Content Given")
 	ErrInvalidRange  = errors.New("End Is LTE Start")
+	ErrInvalidStart  = errors.New("Start is less than 0")
+	ErrInvalidEnd    = errors.New("End is greater than document")
 )
 
 // the two types of buffers for the piece tree.
@@ -540,6 +542,113 @@ func (p *PieceTree) Insert(offset int, contents []byte) error {
 
 	} else {
 		return errors.New("Out of bounds insert")
+	}
+
+	return nil
+}
+
+// Delete delets content by adjusting the tree and not touching the buffer. Like BoundedContents
+// the offsets are [start, end).
+func (p *PieceTree) Delete(start, end int) error {
+	if end <= start {
+		return ErrInvalidRange
+	}
+
+	if end > p.len {
+		return ErrInvalidEnd
+	}
+
+	if start < 0 {
+		return ErrInvalidStart
+	}
+
+	remaining := end - start
+	p.len -= remaining
+
+	// clear the last insert
+	// TODO: Is this always necessary, are there cases where we can keep it?
+	p.lastInsertEnd = 0
+	p.lastInsertNode = nil
+
+	for remaining > 0 {
+		nodeLoc := p.nodeAtOffset(p.root, start)
+
+		// fmt.Printf("local: %d, rem: %d, len: %d\n", nodeLoc.localOffset, remaining, nodeLoc.node.len)
+
+		// if the local offset is 0 the only valid operations are completely removing
+		// the node or trimming from the beginning. If it is set > 0 the only operations
+		// are splitting and trimming from the end.
+		if nodeLoc.localOffset == 0 {
+			// trim from the beginning
+			if remaining < nodeLoc.node.len {
+				oldNewlineCount := nodeLoc.node.newlineCount
+
+				nodeLoc.node.start += remaining
+				nodeLoc.node.len -= remaining
+				nodeLoc.node.newlineCount = p.nodeNewlineCount(nodeLoc.node)
+
+				p.updateCaches(nodeLoc.node.parent, nodeLoc.node, -remaining, nodeLoc.node.newlineCount-oldNewlineCount)
+
+				// We should never have any remaining bytes to delete after this
+				remaining = 0
+			} else {
+				// remove the node
+				fmt.Println("remove node")
+				remaining = 0
+			}
+		} else {
+			fmt.Println("trim end/split")
+			remaining = 0
+		}
+
+		// If the local offset is non zero we can only trim the beginning of the node
+		// or split the node. There shouldn't be any other cases.
+		/*
+			if nodeLoc.localOffset > 0 {
+				// trim the beginning of a node
+				if remaining >= 100 {
+					fmt.Println("trim beginning")
+					remaining = 0
+				} else {
+					// split a node
+					fmt.Println("split")
+					remaining = 0
+				}
+			} else {
+				// trim the end of a node
+				if remaining < nodeLoc.node.len {
+					nodeLoc.node.start += remaining
+					nodeLoc.node.len -= remaining
+					remaining = 0
+				} else if remaining >= nodeLoc.node.len {
+					// completely remove a node
+					fmt.Println("remove node")
+					remaining = 0
+				}
+			}
+		*/
+
+		/*
+			if nodeLoc.localOffset+remaining == nodeLoc.node.len {
+				remaining -= nodeLoc.node.len - nodeLoc.localOffset
+
+				nodeLoc.node.start += nodeLoc.localOffset
+				nodeLoc.node.len -= nodeLoc.localOffset
+			}
+
+			// trim the end of a node
+			if false {
+				// if nodeLoc.localOffset+remaining == nodeLoc.node.len {
+				remaining -= nodeLoc.node.len - nodeLoc.localOffset
+
+				nodeLoc.node.start += nodeLoc.localOffset
+				nodeLoc.node.len -= nodeLoc.localOffset
+			}
+		*/
+
+		// completely remove a node
+
+		// split a node
 	}
 
 	return nil
