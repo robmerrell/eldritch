@@ -595,8 +595,15 @@ func (p *PieceTree) Delete(start, end int) error {
 				bytesRemoved = remaining
 			} else {
 				// remove the node
-				fmt.Println("remove node")
-				remaining = 0
+				bytesRemoved = nodeLoc.node.len
+
+				// If we set the priority to -1 balanceHeap should do the work
+				// for us. I don't think it's the most effecient way, but it's
+				// effecient enough.
+				nodeLoc.node.priority = -1
+				p.balanceHeap(nodeLoc.node)
+				p.updateCaches(nodeLoc.node.parent, nodeLoc.node, -nodeLoc.node.len, -nodeLoc.node.newlineCount)
+				p.replaceChild(nodeLoc.node.parent, nodeLoc.node, nil)
 			}
 		} else {
 			// trim end
