@@ -575,6 +575,8 @@ func (p *PieceTree) Delete(start, end int) error {
 
 		// fmt.Printf("local: %d, rem: %d, len: %d\n", nodeLoc.localOffset, remaining, nodeLoc.node.len)
 
+		bytesRemoved := 0
+
 		// if the local offset is 0 the only valid operations are completely removing
 		// the node or trimming from the beginning. If it is set > 0 the only operations
 		// are splitting and trimming from the end.
@@ -590,16 +592,29 @@ func (p *PieceTree) Delete(start, end int) error {
 				p.updateCaches(nodeLoc.node.parent, nodeLoc.node, -remaining, nodeLoc.node.newlineCount-oldNewlineCount)
 
 				// We should never have any remaining bytes to delete after this
-				remaining = 0
+				bytesRemoved = remaining
 			} else {
 				// remove the node
 				fmt.Println("remove node")
 				remaining = 0
 			}
 		} else {
-			fmt.Println("trim end/split")
-			remaining = 0
+			// trim end
+			if nodeLoc.localOffset+remaining >= nodeLoc.node.len {
+				oldNewlineCount := nodeLoc.node.newlineCount
+
+				bytesRemoved = nodeLoc.node.len - nodeLoc.localOffset
+				nodeLoc.node.len -= bytesRemoved
+				nodeLoc.node.newlineCount = p.nodeNewlineCount(nodeLoc.node)
+
+				p.updateCaches(nodeLoc.node.parent, nodeLoc.node, -bytesRemoved, nodeLoc.node.newlineCount-oldNewlineCount)
+			} else {
+				fmt.Println("split------")
+				remaining = 0
+			}
 		}
+
+		remaining -= bytesRemoved
 
 		// If the local offset is non zero we can only trim the beginning of the node
 		// or split the node. There shouldn't be any other cases.

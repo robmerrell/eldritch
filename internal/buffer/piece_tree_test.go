@@ -2,7 +2,6 @@ package buffer
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"slices"
 	"testing"
@@ -512,14 +511,13 @@ func TestDeleteTrimBeginning(t *testing.T) {
 func TestDeleteTrimEnd(t *testing.T) {
 	p := pieceTreeFixture()
 
-	err := p.Delete(1, 3)
+	err := p.Delete(5, 8)
 	assert.NoError(t, err)
 
 	contents, err := p.Contents()
 	assert.NoError(t, err)
-
-	fmt.Println(string(contents))
-
+	assert.Equal(t, []byte("one\ntthree\nfour\nfive\nsix\nseven\n"), contents)
+	assertValid(t, p)
 }
 
 func TestRotateRight(t *testing.T) {
