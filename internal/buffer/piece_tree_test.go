@@ -544,6 +544,18 @@ func TestDeleteFromMultipleNodes(t *testing.T) {
 	assertValid(t, p)
 }
 
+func TestDeleteSplit(t *testing.T) {
+	p := pieceTreeFixture()
+
+	err := p.Delete(9, 11)
+	assert.NoError(t, err)
+
+	contents, err := p.Contents()
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("one\ntwo\ntee\nfour\nfive\nsix\nseven\n"), contents)
+	assertValid(t, p)
+}
+
 func TestRotateRight(t *testing.T) {
 	p := pieceTreeFixture()
 	four := p.root

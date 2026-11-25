@@ -616,61 +616,44 @@ func (p *PieceTree) Delete(start, end int) error {
 
 				p.updateCaches(nodeLoc.node.parent, nodeLoc.node, -bytesRemoved, nodeLoc.node.newlineCount-oldNewlineCount)
 			} else {
-				fmt.Println("split------")
-				remaining = 0
+				bytesRemoved = remaining
+				oldNewlineCount := nodeLoc.node.newlineCount
+
+				// right side
+				tailStart := nodeLoc.node.start + nodeLoc.localOffset + remaining
+				tailLen := nodeLoc.node.len - nodeLoc.localOffset - remaining
+
+				newRight := &node{
+					bufferType:              nodeLoc.node.bufferType,
+					start:                   tailStart,
+					len:                     tailLen,
+					leftSubtreeLen:          0,
+					leftSubtreeNewlineCount: 0,
+					parent:                  nodeLoc.node,
+					left:                    nil,
+					right:                   nodeLoc.node.right,
+					priority:                p.priorityFunc(),
+				}
+				newRight.newlineCount = p.nodeNewlineCount(newRight)
+
+				if newRight.right != nil {
+					newRight.right.parent = newRight
+				}
+				nodeLoc.node.right = newRight
+
+				// shrink the existing node
+				nodeLoc.node.len = nodeLoc.localOffset
+				nodeLoc.node.newlineCount = p.nodeNewlineCount(nodeLoc.node)
+
+				// update the ancestors
+				newlineDelta := nodeLoc.node.newlineCount + newRight.newlineCount - oldNewlineCount
+				p.updateCaches(nodeLoc.node.parent, nodeLoc.node, -bytesRemoved, newlineDelta)
+
+				p.balanceHeap(newRight)
 			}
 		}
 
 		remaining -= bytesRemoved
-
-		// If the local offset is non zero we can only trim the beginning of the node
-		// or split the node. There shouldn't be any other cases.
-		/*
-			if nodeLoc.localOffset > 0 {
-				// trim the beginning of a node
-				if remaining >= 100 {
-					fmt.Println("trim beginning")
-					remaining = 0
-				} else {
-					// split a node
-					fmt.Println("split")
-					remaining = 0
-				}
-			} else {
-				// trim the end of a node
-				if remaining < nodeLoc.node.len {
-					nodeLoc.node.start += remaining
-					nodeLoc.node.len -= remaining
-					remaining = 0
-				} else if remaining >= nodeLoc.node.len {
-					// completely remove a node
-					fmt.Println("remove node")
-					remaining = 0
-				}
-			}
-		*/
-
-		/*
-			if nodeLoc.localOffset+remaining == nodeLoc.node.len {
-				remaining -= nodeLoc.node.len - nodeLoc.localOffset
-
-				nodeLoc.node.start += nodeLoc.localOffset
-				nodeLoc.node.len -= nodeLoc.localOffset
-			}
-
-			// trim the end of a node
-			if false {
-				// if nodeLoc.localOffset+remaining == nodeLoc.node.len {
-				remaining -= nodeLoc.node.len - nodeLoc.localOffset
-
-				nodeLoc.node.start += nodeLoc.localOffset
-				nodeLoc.node.len -= nodeLoc.localOffset
-			}
-		*/
-
-		// completely remove a node
-
-		// split a node
 	}
 
 	return nil
