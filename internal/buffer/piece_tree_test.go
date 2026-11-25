@@ -156,6 +156,14 @@ func TestContentsReturnsFullTreeContent(t *testing.T) {
 	assert.Equal(t, []byte("one\ntwo\nthree\nfour\nfive\nsix\nseven\n"), contents)
 }
 
+func TestContentsEmptyTree(t *testing.T) {
+	p := NewPieceTree([]byte{})
+	contents, err := p.Contents()
+
+	assert.NoError(t, err)
+	assert.Empty(t, contents)
+}
+
 func TestBoundedContentsReturnsBetweenOffsets(t *testing.T) {
 	p := pieceTreeFixture()
 
@@ -182,6 +190,14 @@ func TestBoundedContentsReturnsBetweenOffsets(t *testing.T) {
 	contents, err = p.BoundedContents(0, 4)
 	assert.NoError(t, err)
 	assert.Equal(t, []byte("one\n"), contents)
+}
+
+func TestBoundedContentsEmptyTree(t *testing.T) {
+	p := NewPieceTree([]byte{})
+	contents, err := p.BoundedContents(0, 2)
+
+	assert.NoError(t, err)
+	assert.Empty(t, contents)
 }
 
 func TestNodeAtOffset(t *testing.T) {
@@ -445,6 +461,18 @@ func TestEnd(t *testing.T) {
 	contents, err := p.Contents()
 	assert.NoError(t, err)
 	assert.Equal(t, []byte("hello, world"), contents)
+	assertValid(t, p)
+}
+
+func TestInsertEmptyTree(t *testing.T) {
+	p := NewPieceTree([]byte{})
+
+	err := p.Insert(5, []byte("hello"))
+	assert.NoError(t, err)
+
+	contents, err := p.Contents()
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("hello"), contents)
 	assertValid(t, p)
 }
 

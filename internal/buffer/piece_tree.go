@@ -82,14 +82,9 @@ func NewPieceTree(initial []byte) *PieceTree {
 
 	priorityFunc := rand.Int
 
-	return &PieceTree{
-		originalBuffer:     initial,
-		originalLineStarts: originalLineStarts,
-		addBuffer:          []byte{},
-		addLineStarts:      []int{0},
-		len:                len(initial),
-		priorityFunc:       priorityFunc,
-		root: &node{
+	var root *node
+	if len(initial) > 0 {
+		root = &node{
 			bufferType:              bufferTypeOriginal,
 			start:                   0,
 			len:                     len(initial),
@@ -97,7 +92,17 @@ func NewPieceTree(initial []byte) *PieceTree {
 			newlineCount:            len(originalLineStarts) - 1,
 			leftSubtreeNewlineCount: 0,
 			priority:                priorityFunc(),
-		},
+		}
+	}
+
+	return &PieceTree{
+		originalBuffer:     initial,
+		originalLineStarts: originalLineStarts,
+		addBuffer:          []byte{},
+		addLineStarts:      []int{0},
+		len:                len(initial),
+		priorityFunc:       priorityFunc,
+		root:               root,
 	}
 }
 
@@ -400,7 +405,7 @@ func (p *PieceTree) validateNode(node *node) (leftSubtreeLen, leftSubtreeNewline
 
 // Insert inserts bytes into the piece tree. Nodes are split, created and balanced as needed.
 func (p *PieceTree) Insert(offset int, contents []byte) error {
-	if offset < 0 || offset > p.len {
+	if offset < 0 || (offset > p.len && p.root != nil) {
 		return ErrInvalidOffset
 	}
 
@@ -433,6 +438,24 @@ func (p *PieceTree) Insert(offset int, contents []byte) error {
 			p.lastInsertEnd += contentLen
 			return nil
 		}
+	}
+
+	// tree is empty
+	if p.root == nil {
+		root := &node{
+			bufferType:              bufferTypeAdd,
+			start:                   0,
+			len:                     contentLen,
+			leftSubtreeLen:          0,
+			leftSubtreeNewlineCount: 0,
+			priority:                p.priorityFunc(),
+		}
+		root.newlineCount = p.nodeNewlineCount(root)
+
+		p.root = root
+		p.lastInsertNode = root
+		p.lastInsertEnd = contentLen
+		return nil
 	}
 
 	// end of the document
