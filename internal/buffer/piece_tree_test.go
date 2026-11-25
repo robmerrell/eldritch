@@ -2,6 +2,7 @@ package buffer
 
 import (
 	"errors"
+	"math/rand/v2"
 	"os"
 	"slices"
 	"testing"
@@ -613,4 +614,71 @@ func TestRotateLeft(t *testing.T) {
 
 	c, _ := p.Contents()
 	assert.Equal(t, []byte("one\ntwo\nthree\nfour\nfive\nsix\nseven\n"), c)
+}
+
+// FuzzEdits fuzzes multiple inserts and deletes.
+func FuzzEdits(f *testing.F) {
+	textSource := "ab\ncd\n\nefg\nh\n\n\nijkl\nmn\nopq\n\nrs\n"
+
+	// seed a "script" for edits. Naming these functions to help keep things clear
+	insertOp := func(offset, textPosition, length byte) []byte {
+		return []byte{0, offset, textPosition, length}
+	}
+	deleteOp := func(offset, length byte) []byte {
+		return []byte{1, offset, 0, length}
+	}
+	f.Add(uint64(1), slices.Concat(insertOp(2, 40, 5), deleteOp(0, 3)))
+
+	f.Fuzz(func(t *testing.T, prioritySeed uint64, script []byte) {
+		initial := []byte("hello\nworld\n")
+		p := NewPieceTree(initial)
+		ref := slices.Clone(initial)
+
+		priorityRng := rand.New(rand.NewPCG(prioritySeed, 0))
+		p.priorityFunc = func() int { return priorityRng.Int() }
+		p.root.priority = priorityRng.Int()
+
+		// unpack from the script
+		chunksDone := 0
+		for operation := range slices.Chunk(script, 4) {
+			if len(operation) < 4 || chunksDone >= 64 {
+				break
+			}
+			chunksDone++
+
+			// we use modulo instead of clamping because it makes it "wrap" and gives
+			// more helpful values than just biasing towards the end of the document
+			offset := int(operation[1]) % (len(ref) + 1)
+			length := int(operation[3])%16 + 1
+
+			// 0 is insert
+			// 1 is delete
+			switch operation[0] % 2 {
+			case 0:
+				textStart := int(operation[2]) % (len(textSource) - length + 1)
+				text := []byte(textSource[textStart : textStart+length])
+
+				assert.NoError(t, p.Insert(offset, text))
+				ref = slices.Insert(ref, offset, text...)
+
+				t.Logf("op %d: Insert(%d, %q)", chunksDone, offset, text)
+
+			case 1:
+				end := min(offset+length, len(ref))
+				if end <= offset {
+					continue
+				}
+
+				assert.NoError(t, p.Delete(offset, end))
+				ref = slices.Delete(ref, offset, end)
+
+				t.Logf("op %d: Delete(%d, %d)", chunksDone, offset, end)
+			}
+		}
+
+		contents, err := p.Contents()
+		assert.NoError(t, err)
+		assert.Equal(t, string(ref), string(contents))
+		assertValid(t, p)
+	})
 }

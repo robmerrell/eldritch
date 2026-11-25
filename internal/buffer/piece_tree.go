@@ -444,7 +444,7 @@ func (p *PieceTree) Insert(offset int, contents []byte) error {
 	if p.root == nil {
 		root := &node{
 			bufferType:              bufferTypeAdd,
-			start:                   0,
+			start:                   addOffset,
 			len:                     contentLen,
 			leftSubtreeLen:          0,
 			leftSubtreeNewlineCount: 0,
