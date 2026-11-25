@@ -572,8 +572,9 @@ func (p *PieceTree) Delete(start, end int) error {
 
 	for remaining > 0 {
 		nodeLoc := p.nodeAtOffset(p.root, start)
-
-		// fmt.Printf("local: %d, rem: %d, len: %d\n", nodeLoc.localOffset, remaining, nodeLoc.node.len)
+		if nodeLoc == nil {
+			return ErrInvalidOffset
+		}
 
 		bytesRemoved := 0
 
