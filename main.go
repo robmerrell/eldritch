@@ -5,12 +5,12 @@ import (
 	"os"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/robmerrell/eldritch/internal/app"
+	"github.com/robmerrell/eldritch/internal/tui"
 )
 
 func main() {
 	fileName := "./main.go"
-	eldApp, err := app.Init(&fileName)
+	eldApp, err := tui.InitApp(&fileName)
 	if err != nil {
 		fmt.Println("fatal:", err)
 		os.Exit(1)
