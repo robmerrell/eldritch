@@ -18,7 +18,7 @@ func (e *EditContainer) Init() tea.Cmd {
 }
 
 func (e *EditContainer) View() tea.View {
-	return tea.NewView("container output")
+	return e.content.View()
 }
 
 func (e *EditContainer) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -26,5 +26,7 @@ func (e *EditContainer) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func NewEditContainer() *EditContainer {
-	return &EditContainer{}
+	return &EditContainer{
+		content: NewBufferView(),
+	}
 }
