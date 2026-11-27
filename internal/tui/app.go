@@ -11,6 +11,9 @@ type rootModel struct {
 	// screen sizes
 	screenWidth  int
 	screenHeight int
+
+	// main container for editing content
+	editContainer *EditContainer
 }
 
 func (m *rootModel) Init() tea.Cmd {
@@ -18,7 +21,7 @@ func (m *rootModel) Init() tea.Cmd {
 }
 
 func (m *rootModel) View() tea.View {
-	view := tea.NewView("output")
+	view := tea.NewView(m.editContainer.View().Content)
 	view.AltScreen = true
 	return view
 }
@@ -48,5 +51,7 @@ func (m *rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func InitApp(fileName *string) (*rootModel, error) {
-	return &rootModel{}, nil
+	return &rootModel{
+		editContainer: NewEditContainer(),
+	}, nil
 }
