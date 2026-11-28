@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/robmerrell/eldritch/internal/buffer"
 	"github.com/robmerrell/eldritch/internal/messages"
 )
 
@@ -15,6 +16,9 @@ type rootModel struct {
 
 	// main container for editing content
 	editContainer *EditContainer
+
+	// global list of open buffers
+	buffers []*buffer.Buffer
 }
 
 func (m *rootModel) Init() tea.Cmd {
@@ -54,7 +58,21 @@ func (m *rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func InitApp(fileName *string) (*rootModel, error) {
+	// The app either starts with a buffer loaded from a file or a new empty one
+	var startBuffer *buffer.Buffer
+	var err error
+
+	if fileName == nil {
+		startBuffer = buffer.NewBuffer()
+	} else {
+		startBuffer, err = buffer.NewBufferWithFile(*fileName)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &rootModel{
-		editContainer: NewEditContainer(),
+		buffers:       []*buffer.Buffer{startBuffer},
+		editContainer: NewEditContainer(startBuffer),
 	}, nil
 }

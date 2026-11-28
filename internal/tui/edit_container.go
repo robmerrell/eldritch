@@ -2,6 +2,7 @@ package tui
 
 import (
 	tea "charm.land/bubbletea/v2"
+	"github.com/robmerrell/eldritch/internal/buffer"
 	"github.com/robmerrell/eldritch/internal/messages"
 )
 
@@ -37,8 +38,8 @@ func (e *EditContainer) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return e, nil
 }
 
-func NewEditContainer() *EditContainer {
+func NewEditContainer(initialBuffer *buffer.Buffer) *EditContainer {
 	return &EditContainer{
-		content: NewBufferView(),
+		content: NewBufferView(initialBuffer),
 	}
 }

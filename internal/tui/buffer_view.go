@@ -1,11 +1,16 @@
 package tui
 
-import tea "charm.land/bubbletea/v2"
+import (
+	tea "charm.land/bubbletea/v2"
+	"github.com/robmerrell/eldritch/internal/buffer"
+)
 
 // BufferView is our visual interface into a buffer. All interactions on a buffer must go
 // through a BufferView. BufferViews are also responsible for maintaining a list of active
 // selections on a buffer. Multiple BufferViews can all point at the same buffer.
-type BufferView struct{}
+type BufferView struct {
+	buffer *buffer.Buffer
+}
 
 func (b *BufferView) Init() tea.Cmd {
 	return nil
@@ -19,6 +24,8 @@ func (b *BufferView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return b, nil
 }
 
-func NewBufferView() *BufferView {
-	return &BufferView{}
+func NewBufferView(buffer *buffer.Buffer) *BufferView {
+	return &BufferView{
+		buffer: buffer,
+	}
 }
