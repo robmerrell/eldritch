@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/robmerrell/eldritch/internal/messages"
 )
 
 type rootModel struct {
@@ -35,7 +36,9 @@ func (m *rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.screenWidth = msg.Width
 		m.screenHeight = msg.Height
-		// m.rootView.Update(msg)
+
+		// while this is the only thing being rendered it will just be the whole screen
+		m.editContainer.Update(messages.UpdateSizeMsg{Width: msg.Width, Height: msg.Height})
 
 	// handle keypress events. We only handle state global state transitions in
 	// this module. Everything else is delegated to components.

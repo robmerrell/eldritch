@@ -1,6 +1,9 @@
 package tui
 
-import tea "charm.land/bubbletea/v2"
+import (
+	tea "charm.land/bubbletea/v2"
+	"github.com/robmerrell/eldritch/internal/messages"
+)
 
 // EditContainer holds the main "panel" for our editable content. Splits, BufferViews, etc.
 // It isn't strictly necessary now, but I have a feeling when I start on the bottom panel
@@ -11,6 +14,9 @@ type EditContainer struct {
 	// BufferView. I might narrow down this interface in the future, but right now
 	// this can technically render any tea model.
 	content tea.Model
+
+	width  int
+	height int
 }
 
 func (e *EditContainer) Init() tea.Cmd {
@@ -22,6 +28,12 @@ func (e *EditContainer) View() tea.View {
 }
 
 func (e *EditContainer) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case messages.UpdateSizeMsg:
+		e.width = msg.Width
+		e.height = msg.Height
+	}
+
 	return e, nil
 }
 
